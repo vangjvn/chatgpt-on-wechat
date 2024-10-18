@@ -1,7 +1,9 @@
 import requests
-
+# from config import settings
 from . import storage
+# from aiohttp_socks import ProxyConnector
 
+# connector = ProxyConnector.from_url(settings.PROXY_URL)
 class Core(object):
     def __init__(self):
         ''' init is the only method defined in core.py

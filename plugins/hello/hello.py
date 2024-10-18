@@ -116,9 +116,9 @@ class Hello(Plugin):
         return help_text
 
     def _load_config_template(self):
-        logger.debug("No Hello plugin config.json, use plugins/hello/config.json.template")
+        logger.debug("No Hello plugin config.json, use plugins/hello/config.json")
         try:
-            plugin_config_path = os.path.join(self.path, "config.json.template")
+            plugin_config_path = os.path.join(self.path, "config.json")
             if os.path.exists(plugin_config_path):
                 with open(plugin_config_path, "r", encoding="utf-8") as f:
                     plugin_conf = json.load(f)

@@ -8,3 +8,10 @@ Pillow
 pre-commit
 web.py
 linkai>=0.0.6.0
+pypng
+tiktoken
+pydantic_settings
+httpx
+aiohttp_socks
+azure-cognitiveservices-speech
+langid

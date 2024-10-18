@@ -15,13 +15,12 @@ except ImportError:
 
 import requests
 from pyqrcode import QRCode
-
 from .. import config, utils
 from ..returnvalues import ReturnValue
 from ..storage.templates import wrap_user_dict
 from .contact import update_local_chatrooms, update_local_friends
 from .messages import produce_msg
-
+from config import conf
 logger = logging.getLogger('itchat')
 
 
@@ -326,7 +325,7 @@ def start_receiving(self, exitCallback=None, getReceivingFnOnly=False):
                         retryCount) + "Stop trying...")
                     self.alive = False
                 else:
-                    time.sleep(1)
+                    time.sleep(10)
         self.logout()
         if hasattr(exitCallback, '__call__'):
             exitCallback()
@@ -353,11 +352,17 @@ def sync_check(self):
     headers = {'User-Agent': config.USER_AGENT}
     self.loginInfo['logintime'] += 1
     try:
-        r = self.s.get(url, params=params, headers=headers,
-                       timeout=config.TIMEOUT)
+
+        proxy = conf().get("proxy")
+        if proxy:
+            r = self.s.get(url, params=params, headers=headers,
+                           timeout=config.TIMEOUT, proxies={"proxy":proxy,"no_proxy":None})
+        else:
+            r = self.s.get(url, params=params, headers=headers,
+                           timeout=config.TIMEOUT)
     except requests.exceptions.ConnectionError as e:
         try:
-            if not isinstance(e.args[0].args[1], BadStatusLine):
+            if not isinstance(e.args[0].args[0], BadStatusLine):
                 raise
             # will return a package with status '0 -'
             # and value like:

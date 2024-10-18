@@ -1,11 +1,12 @@
 # encoding:utf-8
-
+from typing import Optional
 import json
 import logging
 import os
 import pickle
 import copy
-
+from pydantic_settings import BaseSettings
+import httpx
 from common.log import logger
 
 # 将所有可用的配置项写在字典里, 请使用小写字母
@@ -17,7 +18,7 @@ available_setting = {
     "open_ai_api_base": "https://api.openai.com/v1",
     "proxy": "",  # openai使用的代理
     # chatgpt模型， 当use_azure_chatgpt为true时，其名称为Azure上model deployment名称
-    "model": "gpt-3.5-turbo",  # 可选择: gpt-4o, pt-4o-mini, gpt-4-turbo, claude-3-sonnet, wenxin, moonshot, qwen-turbo, xunfei, glm-4, minimax, gemini等模型，全部可选模型详见common/const.py文件
+    "model": "gpt-3.5-turbo",  # 可选择: gpt-4o, gpt-4o-mini, gpt-4-turbo, claude-3-sonnet, wenxin, moonshot, qwen-turbo, xunfei, glm-4, minimax, gemini等模型，全部可选模型详见common/const.py文件
     "bot_type": "",  # 可选配置，使用兼容openai格式的三方服务时候，需填"chatGPT"。bot具体名称详见common/const.py文件列出的bot_type，如不填根据model名称判断，
     "use_azure_chatgpt": False,  # 是否使用azure的chatgpt
     "azure_deployment_id": "",  # azure 模型部署名称
@@ -136,7 +137,7 @@ available_setting = {
     "wechatmp_aes_key": "",  # 微信公众平台的EncodingAESKey，加密模式需要
     # wechatcom的通用配置
     "wechatcom_corp_id": "",  # 企业微信公司的corpID
-    # wechatcomapp的配置
+    # wechatcomapp的配置~~~~~~~~~~~~~~~~
     "wechatcomapp_token": "",  # 企业微信app的token
     "wechatcomapp_port": 9898,  # 企业微信app的服务端口,不需要端口转发
     "wechatcomapp_secret": "",  # 企业微信app的secret
@@ -181,6 +182,13 @@ available_setting = {
     "Minimax_base_url": "",
 }
 
+
+# class Settings(BaseSettings):
+#     PROXY_URL: Optional[str] = "http://127.0.0.1:8080"
+#     PROXY_HTTP_CLIENT: Optional[httpx.Client] = httpx.Client(proxy=PROXY_URL, timeout=30)
+#
+#
+# settings = Settings()
 
 class Config(dict):
     def __init__(self, d=None):
@@ -268,7 +276,7 @@ def load_config():
     config_path = "./config.json"
     if not os.path.exists(config_path):
         logger.info("配置文件不存在，将使用config-template.json模板")
-        config_path = "./config-template.json"
+        config_path = "config.json"
 
     config_str = read_file(config_path)
     logger.debug("[INIT] config str: {}".format(drag_sensitive(config_str)))
