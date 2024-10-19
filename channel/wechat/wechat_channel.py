@@ -26,7 +26,7 @@ from lib import itchat
 from lib.itchat.content import *
 
 
-@itchat.msg_register([TEXT, VOICE, PICTURE, NOTE, ATTACHMENT, SHARING])
+@itchat.msg_register([TEXT, VOICE, PICTURE, NOTE, ATTACHMENT, SHARING,VIDEO])
 def handler_single_msg(msg):
     try:
         cmsg = WechatMessage(msg, False)
@@ -37,7 +37,7 @@ def handler_single_msg(msg):
     return None
 
 
-@itchat.msg_register([TEXT, VOICE, PICTURE, NOTE, ATTACHMENT, SHARING], isGroupChat=True)
+@itchat.msg_register([TEXT, VOICE, PICTURE, NOTE, ATTACHMENT, SHARING, VIDEO], isGroupChat=True)
 def handler_group_msg(msg):
     try:
         cmsg = WechatMessage(msg, True)
