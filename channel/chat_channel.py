@@ -4,7 +4,8 @@ import threading
 import time
 from asyncio import CancelledError
 from concurrent.futures import Future, ThreadPoolExecutor
-
+from moviepy.editor import VideoFileClip
+import speech_recognition as sr
 from bridge.context import *
 from bridge.reply import *
 from channel.channel import Channel
@@ -218,6 +219,31 @@ class ChatChannel(Channel):
                         reply = self._generate_reply(new_context)
                     else:
                         return
+            elif context.type == ContextType.VIDEO:  # 视频消息
+                # 提取视频中的音频voice，然后进行语音识别转成文字
+                try:
+                    # 1. 提取视频中的音频
+                    video_path = context.content
+                    audio_path = os.path.splitext(video_path)[0] + ".wav"
+
+                    video = VideoFileClip(video_path)
+                    video.audio.write_audiofile(audio_path)
+
+                    # 2. 进行语音识别
+                    recognizer = sr.Recognizer()
+                    with sr.AudioFile(audio_path) as source:
+                        audio = recognizer.record(source)
+
+                    # 3. 转换为文字
+                    text = recognizer.recognize_google(audio)
+
+                    print(f"从视频中提取的文字: {text}")
+
+                    # 清理临时文件
+                    os.remove(audio_path)
+
+                except Exception as e:
+                    print(f"处理视频消息时出错: {str(e)}")
             elif context.type == ContextType.IMAGE:  # 图片消息，当前仅做下载保存到本地的逻辑
                 memory.USER_IMAGE_CACHE[context["session_id"]] = {
                     "path": context.content,

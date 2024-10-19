@@ -15,3 +15,5 @@ httpx
 aiohttp_socks
 azure-cognitiveservices-speech
 langid
+moviepy
+SpeechRecognition
