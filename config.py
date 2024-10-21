@@ -180,6 +180,7 @@ available_setting = {
     "Minimax_api_key": "",
     "Minimax_group_id": "",
     "Minimax_base_url": "",
+    "daily_content": "hello,i am peppa pig,i am 5 years old,i am a little piggy."
 }
 
 

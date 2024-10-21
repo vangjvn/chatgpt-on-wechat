@@ -257,12 +257,14 @@ class ChatChannel(Channel):
                         # 4. 构建任务，并采用语音回复
                         print(f"从视频中提取的文字: {text}")
                         # 这里根据context，自己构建一个回复逻辑的函数。
-                        def reply_for_video(text):
-                            new_text = f"从视频中识别的文本:\n"+text
-                            return new_text
-                        reply_text = reply_for_video(text)
-
-                        reply = Reply(ReplyType.TEXT, reply_text)
+                        from prompts.prompts import generate_peppa_reading_evaluation
+                        daily_content = conf().get("daily_content")
+                        reply_str = generate_peppa_reading_evaluation(conf().get("open_ai_api_key"),daily_content, text)
+                        reply_json = json.loads(reply_str)
+                        score = reply_json['score']
+                        reply_text = reply_json['response']
+                        res_reply = f"本次跟读得分为：{score}分\n{reply_text}"
+                        reply = Reply(ReplyType.TEXT, res_reply)
 
                     # 清理临时文件
                     os.remove(audio_path)

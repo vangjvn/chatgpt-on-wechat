@@ -92,7 +92,6 @@ class WechatMessage(ChatMessage):
             self.content = TmpDir().path() + itchat_msg["FileName"]  # content直接存临时目录路径
             self._prepare_fn = lambda: itchat_msg.download(self.content)
             print("视频文件路径：", self.content)
-            # print("视频完整消息：", itchat_msg)
 
         else:
             raise NotImplementedError(
