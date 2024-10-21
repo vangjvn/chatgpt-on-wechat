@@ -1,5 +1,6 @@
 import os
 import re
+import requests
 import threading
 import time
 from asyncio import CancelledError
@@ -223,25 +224,49 @@ class ChatChannel(Channel):
                 # 提取视频中的音频voice，然后进行语音识别转成文字
                 try:
                     # 1. 提取视频中的音频
+                    cmsg = context["msg"]
+                    cmsg.prepare()
                     video_path = context.content
+                    print(f"视频文件路径：{video_path}")
                     audio_path = os.path.splitext(video_path)[0] + ".wav"
-
+                    print(f"音频路径: {video_path}")
                     video = VideoFileClip(video_path)
                     video.audio.write_audiofile(audio_path)
 
                     # 2. 进行语音识别
-                    recognizer = sr.Recognizer()
-                    with sr.AudioFile(audio_path) as source:
-                        audio = recognizer.record(source)
 
+                    file = open(audio_path, "rb")
+                    api_base = conf().get("open_ai_api_base") or "https://api.openai.com/v1"
+                    url = f'{api_base}/audio/transcriptions'
+                    headers = {
+                        'Authorization': 'Bearer ' + conf().get("open_ai_api_key"),
+                        # 'Content-Type': 'multipart/form-data' # 加了会报错，不知道什么原因
+                    }
+                    files = {
+                        "file": file,
+                    }
+                    data = {
+                        "model": "whisper-1",
+                    }
+                    response = requests.post(url, headers=headers, files=files, data=data)
+                    response_data = response.json()
                     # 3. 转换为文字
-                    text = recognizer.recognize_google(audio)
+                    text = response_data['text']
 
-                    print(f"从视频中提取的文字: {text}")
+                    if text:
+                        # 4. 构建任务，并采用语音回复
+                        print(f"从视频中提取的文字: {text}")
+                        # 这里根据context，自己构建一个回复逻辑的函数。
+                        def reply_for_video(text):
+                            new_text = f"从视频中识别的文本:\n"+text
+                            return new_text
+                        reply_text = reply_for_video(text)
+
+                        reply = Reply(ReplyType.TEXT, reply_text)
 
                     # 清理临时文件
                     os.remove(audio_path)
-
+                    os.remove(video_path)
                 except Exception as e:
                     print(f"处理视频消息时出错: {str(e)}")
             elif context.type == ContextType.IMAGE:  # 图片消息，当前仅做下载保存到本地的逻辑
