@@ -92,6 +92,11 @@ class WechatMessage(ChatMessage):
             self.content = TmpDir().path() + itchat_msg["FileName"]  # content直接存临时目录路径
             self._prepare_fn = lambda: itchat_msg.download(self.content)
             print("视频文件路径：", self.content)
+        elif itchat_msg["Type"] == ContextType.FILE or itchat_msg["Type"] == ContextType.TXT:
+            if itchat_msg["FileName"].endswith(".txt"):
+                self.ctype = ContextType.TXT
+            self.content = TmpDir().path() + itchat_msg["FileName"]  # content直接存临时目录路径
+            self._prepare_fn = lambda: itchat_msg.download(self.content)
 
         else:
             raise NotImplementedError(

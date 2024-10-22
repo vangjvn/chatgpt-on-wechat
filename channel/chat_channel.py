@@ -13,9 +13,9 @@ from channel.channel import Channel
 from common.dequeue import Dequeue
 from common import memory
 from plugins import *
-from video_task.video_task import process_video
+from video_task.video_task import process_video, read_text_file, get_tts_file_url
 from video_task.user_data import generate_user_id
-from config import User_manager
+from config import User_manager, update_config
 
 try:
     from voice.audio_convert import any_to_wav
@@ -270,6 +270,25 @@ _____________________
                         reply = Reply(ReplyType.TEXT, res_reply)
                 except Exception as e:
                     print(f"处理视频消息时出错: {str(e)}")
+            elif context.type == ContextType.FILE or context.type == ContextType.TXT:  # 文件消息
+                if context.content.endswith(".txt"):
+                    # 文本文件。 下载文本文件。
+                    cmsg = context["msg"]
+                    cmsg.prepare()
+                    txt_path = context.content
+                    print(f"txt文件路径：{txt_path}")
+
+                    text = read_text_file(txt_path)
+                    update_config("daily_content", text)
+                    wav_url = get_tts_file_url("edu_english_root_01", "azure", "zh-CN-XiaoxiaoMultilingualNeural", text)
+                    update_config("wav_url", wav_url)
+                    reply = Reply(ReplyType.INFO, f"跟读任务已更新：\n" + text[:(
+                        min(100, len(text)))] + f"\n（如果过长，后面部分省略显示，跟读任务没有省略）" + f"""
+- [跟读内容参考音频]({wav_url})                
+""")
+                else:
+                    pass
+
             elif context.type == ContextType.IMAGE:  # 图片消息，当前仅做下载保存到本地的逻辑
                 memory.USER_IMAGE_CACHE[context["session_id"]] = {
                     "path": context.content,
@@ -277,7 +296,7 @@ _____________________
                 }
             elif context.type == ContextType.SHARING:  # 分享信息，当前无默认逻辑
                 pass
-            elif context.type == ContextType.FUNCTION or context.type == ContextType.FILE:  # 文件消息及函数调用等，当前无默认逻辑
+            elif context.type == ContextType.FUNCTION:  # 文件消息及函数调用等，当前无默认逻辑
                 pass
             else:
                 logger.warning("[chat_channel] unknown context type: {}".format(context.type))

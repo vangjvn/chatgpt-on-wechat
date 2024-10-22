@@ -341,3 +341,17 @@ def get_tts_file_url(user_id: str, voice_provider: str, voice_name: str, text: s
     except requests.RequestException as e:
         logger.exception(f"Error in get_tts_file_url: {str(e)}")
         return None
+
+def read_text_file(file_path):
+    """
+    读取文本文件内容
+    :param file_path: 文件路径
+    :return: 文件内容
+    """
+    try:
+        with open(file_path, "r", encoding="utf-8") as file:
+            content = file.read()
+            return content
+    except Exception as e:
+        logger.error(f"Error reading text file: {str(e)}")
+        return None

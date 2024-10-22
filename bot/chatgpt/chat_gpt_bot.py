@@ -76,8 +76,7 @@ class ChatGPTBot(Bot, OpenAIImage):
                 update_config("daily_content",task)
                 wav_url = get_tts_file_url("edu_english_root_01","azure","zh-CN-XiaoxiaoMultilingualNeural",task)
                 update_config("wav_url", wav_url)
-                reply = Reply(ReplyType.INFO, f"跟读任务已更新：\n"+task+f"""
-## 这是跟读内容的参考音频：
+                reply = Reply(ReplyType.INFO, f"跟读任务已更新：\n"+task[:(min(100,len(task)))]+ f"\n（如果过长，后面部分省略显示，跟读任务没有省略）" +f"""
 - [跟读内容参考音频]({wav_url})                
 """)
             if reply:
