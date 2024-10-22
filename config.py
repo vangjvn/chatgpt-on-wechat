@@ -1,13 +1,13 @@
 # encoding:utf-8
-from typing import Optional
 import json
 import logging
 import os
 import pickle
 import copy
-from pydantic_settings import BaseSettings
-import httpx
 from common.log import logger
+import schedule
+import time
+import threading
 
 # 将所有可用的配置项写在字典里, 请使用小写字母
 # 此处的配置值无实际意义，程序不会读取此处的配置，仅用于提示格式，请将配置加入到config.json中
@@ -18,7 +18,8 @@ available_setting = {
     "open_ai_api_base": "https://api.openai.com/v1",
     "proxy": "",  # openai使用的代理
     # chatgpt模型， 当use_azure_chatgpt为true时，其名称为Azure上model deployment名称
-    "model": "gpt-3.5-turbo",  # 可选择: gpt-4o, gpt-4o-mini, gpt-4-turbo, claude-3-sonnet, wenxin, moonshot, qwen-turbo, xunfei, glm-4, minimax, gemini等模型，全部可选模型详见common/const.py文件
+    "model": "gpt-3.5-turbo",
+    # 可选择: gpt-4o, gpt-4o-mini, gpt-4-turbo, claude-3-sonnet, wenxin, moonshot, qwen-turbo, xunfei, glm-4, minimax, gemini等模型，全部可选模型详见common/const.py文件
     "bot_type": "",  # 可选配置，使用兼容openai格式的三方服务时候，需填"chatGPT"。bot具体名称详见common/const.py文件列出的bot_type，如不填根据model名称判断，
     "use_azure_chatgpt": False,  # 是否使用azure的chatgpt
     "azure_deployment_id": "",  # azure 模型部署名称
@@ -41,12 +42,12 @@ available_setting = {
     "trigger_by_self": False,  # 是否允许机器人触发
     "text_to_image": "dall-e-2",  # 图片生成模型，可选 dall-e-2, dall-e-3
     # Azure OpenAI dall-e-3 配置
-    "dalle3_image_style": "vivid", # 图片生成dalle3的风格，可选有 vivid, natural
-    "dalle3_image_quality": "hd", # 图片生成dalle3的质量，可选有 standard, hd
+    "dalle3_image_style": "vivid",  # 图片生成dalle3的风格，可选有 vivid, natural
+    "dalle3_image_quality": "hd",  # 图片生成dalle3的质量，可选有 standard, hd
     # Azure OpenAI DALL-E API 配置, 当use_azure_chatgpt为true时,用于将文字回复的资源和Dall-E的资源分开.
-    "azure_openai_dalle_api_base": "", # [可选] azure openai 用于回复图片的资源 endpoint，默认使用 open_ai_api_base
-    "azure_openai_dalle_api_key": "", # [可选] azure openai 用于回复图片的资源 key，默认使用 open_ai_api_key
-    "azure_openai_dalle_deployment_id":"", # [可选] azure openai 用于回复图片的资源 deployment id，默认使用 text_to_image
+    "azure_openai_dalle_api_base": "",  # [可选] azure openai 用于回复图片的资源 endpoint，默认使用 open_ai_api_base
+    "azure_openai_dalle_api_key": "",  # [可选] azure openai 用于回复图片的资源 key，默认使用 open_ai_api_key
+    "azure_openai_dalle_deployment_id": "",  # [可选] azure openai 用于回复图片的资源 deployment id，默认使用 text_to_image
     "image_proxy": True,  # 是否需要图片代理，国内访问LinkAI时需要
     "image_create_prefix": ["画", "看", "找"],  # 开启图片回复的前缀
     "concurrency_in_session": 1,  # 同一会话最多有多少条消息在处理中，大于1可能乱序
@@ -77,7 +78,8 @@ available_setting = {
     "xunfei_api_key": "",  # 讯飞 API key
     "xunfei_api_secret": "",  # 讯飞 API secret
     "xunfei_domain": "",  # 讯飞模型对应的domain参数，Spark4.0 Ultra为 4.0Ultra，其他模型详见: https://www.xfyun.cn/doc/spark/Web.html
-    "xunfei_spark_url": "",  # 讯飞模型对应的请求地址，Spark4.0 Ultra为 wss://spark-api.xf-yun.com/v4.0/chat，其他模型参考详见: https://www.xfyun.cn/doc/spark/Web.html
+    "xunfei_spark_url": "",
+    # 讯飞模型对应的请求地址，Spark4.0 Ultra为 wss://spark-api.xf-yun.com/v4.0/chat，其他模型参考详见: https://www.xfyun.cn/doc/spark/Web.html
     # claude 配置
     "claude_api_cookie": "",
     "claude_uuid": "",
@@ -153,7 +155,7 @@ available_setting = {
     "dingtalk_client_id": "",  # 钉钉机器人Client ID 
     "dingtalk_client_secret": "",  # 钉钉机器人Client Secret
     "dingtalk_card_enabled": False,
-    
+
     # chatgpt指令自定义触发词
     "clear_memory_commands": ["#清除记忆"],  # 重置会话指令，必须以#开头
     # channel配置
@@ -180,7 +182,9 @@ available_setting = {
     "Minimax_api_key": "",
     "Minimax_group_id": "",
     "Minimax_base_url": "",
-    "daily_content": "hello,i am peppa pig,i am 5 years old,i am a little piggy."
+    "daily_content": "hello,i am peppa pig,i am 5 years old,i am a little piggy.",
+    "TTS_URL": "http://13.212.37.80:7777/api/tts",
+    "wav_url": ""
 }
 
 
@@ -362,3 +366,61 @@ def pconf(plugin_name: str) -> dict:
 
 # 全局配置，用于存放全局生效的状态
 global_config = {"admin_users": []}
+
+
+def update_config(key: str, value: any) -> bool:
+    """
+    更新配置文件中的特定键值，并刷新内存中的配置
+
+    :param key: 要更新的配置项键名
+    :param value: 要设置的新值
+    :return: 更新是否成功
+    """
+    global config
+    config_path = "./config.json"
+
+    try:
+        # 确保键存在于可用设置中
+        if key not in available_setting:
+            raise ValueError(f"配置项 '{key}' 不在可用设置列表中")
+
+        # 读取当前配置
+        with open(config_path, 'r', encoding='utf-8') as f:
+            current_config = json.load(f)
+
+        # 更新配置
+        current_config[key] = value
+
+        # 写入更新后的配置
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(current_config, f, ensure_ascii=False, indent=4)
+
+        # 更新内存中的配置
+        config[key] = value
+
+        logger.info(f"配置项 '{key}' 已更新为: {value}")
+        return True
+
+    except Exception as e:
+        logger.error(f"更新配置失败: {str(e)}")
+        return False
+
+
+from video_task.user_data import UserManager
+
+User_manager = UserManager()
+
+# 每天23：59分自动执行：User_manager.deduct_points()
+
+def run_scheduled_tasks():
+    while True:
+        schedule.run_pending()
+        time.sleep(60)  # 每分钟检查一次是否有待执行的任务
+
+
+def setup_scheduled_tasks():
+    schedule.every().day.at("23:59").do(User_manager.deduct_points)
+
+    # 在新线程中运行定时任务
+    task_thread = threading.Thread(target=run_scheduled_tasks)
+    task_thread.start()

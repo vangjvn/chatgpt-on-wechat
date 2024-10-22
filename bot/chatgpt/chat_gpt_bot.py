@@ -14,8 +14,9 @@ from bridge.context import ContextType
 from bridge.reply import Reply, ReplyType
 from common.log import logger
 from common.token_bucket import TokenBucket
-from config import conf, load_config
+from config import conf, load_config,update_config, User_manager
 from bot.baidu.baidu_wenxin_session import BaiduWenxinSession
+from video_task.video_task import get_tts_file_url
 
 # OpenAI对话模型API (可用)
 class ChatGPTBot(Bot, OpenAIImage):
@@ -53,6 +54,8 @@ class ChatGPTBot(Bot, OpenAIImage):
 
     def reply(self, query, context=None):
         # acquire reply content
+        user_id_hex = context["user_id_hex"]
+        actual_user_nickname = context["actual_user_nickname"]
         if context.type == ContextType.TEXT:
             logger.info("[CHATGPT] query={}".format(query))
 
@@ -68,9 +71,32 @@ class ChatGPTBot(Bot, OpenAIImage):
             elif query == "#更新配置":
                 load_config()
                 reply = Reply(ReplyType.INFO, "配置已更新")
+            elif "更新跟读任务" in query:
+                task = query.replace("更新跟读任务", "")
+                update_config("daily_content",task)
+                wav_url = get_tts_file_url("edu_english_root_01","azure","zh-CN-XiaoxiaoMultilingualNeural",task)
+                update_config("wav_url", wav_url)
+                reply = Reply(ReplyType.INFO, f"跟读任务已更新：\n"+task+f"""
+## 这是跟读内容的参考音频：
+- [跟读内容参考音频]({wav_url})                
+""")
             if reply:
                 return reply
-            session = self.sessions.session_query(query, session_id)
+            today = time.strftime("%Y-%m-%d", time.localtime())
+            new_query = f"今天是{today}\n"
+            if "跟读" in query or "今日" in query or "任务" in query or "今天" in query :
+                load_config()
+                task = conf().get("daily_content")
+                new_query = new_query + f"当用户问到今日任务、今日跟读等内容，请返回跟读内容原文，不要做任何修改，以下是跟读内容原文：\n{task}\n"
+
+
+            # 插入信息合并到query中!!!!!!!!!!
+            user_info = User_manager.load_user(user_id_hex)
+            user_info["username"] = actual_user_nickname
+            new_query = new_query + f"用户当前的姓名、打卡等级等个人信息：\n{user_info}\n" + f"以下是要回答的问题：\n" + query
+
+            print(f"new_query: {new_query}")
+            session = self.sessions.session_query(new_query, session_id)
             logger.debug("[CHATGPT] session query={}".format(session.messages))
 
             api_key = context.get("openai_api_key")
@@ -96,7 +122,13 @@ class ChatGPTBot(Bot, OpenAIImage):
                 reply = Reply(ReplyType.ERROR, reply_content["content"])
             elif reply_content["completion_tokens"] > 0:
                 self.sessions.session_reply(reply_content["content"], session_id, reply_content["total_tokens"])
+
                 reply = Reply(ReplyType.TEXT, reply_content["content"])
+                if "跟读" in query or "今日" in query or "任务" in query or "今天" in query:
+                    reply = Reply(ReplyType.TEXT, reply_content["content"]+f"""
+## 这是跟读内容的参考音频：
+- [跟读内容参考音频]({conf().get("wav_url")})
+""")
             else:
                 reply = Reply(ReplyType.ERROR, reply_content["content"])
                 logger.debug("[CHATGPT] reply {} used 0 tokens.".format(reply_content))

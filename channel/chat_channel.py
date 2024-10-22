@@ -13,6 +13,9 @@ from channel.channel import Channel
 from common.dequeue import Dequeue
 from common import memory
 from plugins import *
+from video_task.video_task import process_video
+from video_task.user_data import generate_user_id
+from config import User_manager
 
 try:
     from voice.audio_convert import any_to_wav
@@ -53,6 +56,12 @@ class ChatChannel(Channel):
             user_data = conf().get_user_data(cmsg.from_user_id)
             context["openai_api_key"] = user_data.get("openai_api_key")
             context["gpt_model"] = user_data.get("gpt_model")
+            # 这里加消息字段传入后面！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！
+            print(f"消息字段：{cmsg}")
+
+            user_id_hex = generate_user_id(cmsg.other_user_nickname, cmsg.actual_user_nickname)
+            context["user_id_hex"] = user_id_hex
+            context["actual_user_nickname"] = cmsg.actual_user_nickname
             if context.get("isgroup", False):
                 group_name = cmsg.other_user_nickname
                 group_id = cmsg.other_user_id
@@ -81,6 +90,7 @@ class ChatChannel(Channel):
                 context["session_id"] = session_id
                 context["receiver"] = group_id
             else:
+                context["actual_user_nickname"] = cmsg.actual_user_nickname
                 context["session_id"] = cmsg.other_user_id
                 context["receiver"] = cmsg.other_user_id
             e_context = PluginManager().emit_event(EventContext(Event.ON_RECEIVE_MESSAGE, {"channel": self, "context": context}))
@@ -181,6 +191,8 @@ class ChatChannel(Channel):
             self._send_reply(context, reply)
 
     def _generate_reply(self, context: Context, reply: Reply = Reply()) -> Reply:
+        user_id_hex = context.get("user_id_hex")
+        actual_user_nickname = context.get("actual_user_nickname")
         e_context = PluginManager().emit_event(
             EventContext(
                 Event.ON_HANDLE_CONTEXT,
@@ -223,52 +235,39 @@ class ChatChannel(Channel):
             elif context.type == ContextType.VIDEO:  # 视频消息
                 # 提取视频中的音频voice，然后进行语音识别转成文字
                 try:
-                    # 1. 提取视频中的音频
-                    cmsg = context["msg"]
-                    cmsg.prepare()
-                    video_path = context.content
-                    print(f"视频文件路径：{video_path}")
-                    audio_path = os.path.splitext(video_path)[0] + ".wav"
-                    print(f"音频路径: {video_path}")
-                    video = VideoFileClip(video_path)
-                    video.audio.write_audiofile(audio_path)
 
-                    # 2. 进行语音识别
-
-                    file = open(audio_path, "rb")
-                    api_base = conf().get("open_ai_api_base") or "https://api.openai.com/v1"
-                    url = f'{api_base}/audio/transcriptions'
-                    headers = {
-                        'Authorization': 'Bearer ' + conf().get("open_ai_api_key"),
-                        # 'Content-Type': 'multipart/form-data' # 加了会报错，不知道什么原因
-                    }
-                    files = {
-                        "file": file,
-                    }
-                    data = {
-                        "model": "whisper-1",
-                    }
-                    response = requests.post(url, headers=headers, files=files, data=data)
-                    response_data = response.json()
-                    # 3. 转换为文字
-                    text = response_data['text']
+                    text = process_video(context, conf)
 
                     if text:
                         # 4. 构建任务，并采用语音回复
                         print(f"从视频中提取的文字: {text}")
                         # 这里根据context，自己构建一个回复逻辑的函数。
-                        from prompts.prompts import generate_peppa_reading_evaluation
+                        from video_task.video_task import generate_peppa_reading_evaluation
                         daily_content = conf().get("daily_content")
-                        reply_str = generate_peppa_reading_evaluation(conf().get("open_ai_api_key"),daily_content, text)
+                        user_info = User_manager.load_user(user_id_hex)
+                        reply_str = generate_peppa_reading_evaluation(conf().get("open_ai_api_key"),daily_content,actual_user_nickname,user_info, text)
                         reply_json = json.loads(reply_str)
+                        print(f"回复的json: {reply_json}")
                         score = reply_json['score']
                         reply_text = reply_json['response']
-                        res_reply = f"本次跟读得分为：{score}分\n{reply_text}"
+                        User_manager.update_user_score(user_id_hex,actual_user_nickname, score)
+                        print(f"更新用户得分为：{score}")
+                        cur_stage = User_manager.load_user(user_id_hex).get("level", "青铜")
+                        print(f"当前用户等级为：{cur_stage}")
+                        total_score = User_manager.load_user(user_id_hex).get("total_score", 0)
+                        print(f"当前用户总分为：{total_score}")
+                        achievements = User_manager.load_user(user_id_hex).get("achievements", [])
+                        print(f"当前用户成就为：{achievements}")
+                        res_reply = f"本次跟读得分为：{score}分\n评价：\n{reply_text}" + f"""
+_____________________
+你的跟读结果：
+{text}
+_____________________
+你的当前打卡级别：{cur_stage}
+你的当前打卡分数：{str(total_score)}
+你当前获得的成就：{str(achievements)}
+"""
                         reply = Reply(ReplyType.TEXT, res_reply)
-
-                    # 清理临时文件
-                    os.remove(audio_path)
-                    os.remove(video_path)
                 except Exception as e:
                     print(f"处理视频消息时出错: {str(e)}")
             elif context.type == ContextType.IMAGE:  # 图片消息，当前仅做下载保存到本地的逻辑
