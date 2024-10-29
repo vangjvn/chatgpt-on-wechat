@@ -130,7 +130,7 @@ class MJBot:
             return
 
         if not self.config.get("enabled"):
-            logger.warn("Midjourney绘画未开启，请查看 plugins/linkai/config.json 中的配置")
+            logger.warn("Midjourney绘画未开启，请查看 plugins/linkai/config.json.example 中的配置")
             self._set_reply_text(f"Midjourney绘画未开启", e_context, level=ReplyType.INFO)
             return
 

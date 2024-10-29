@@ -5,7 +5,7 @@
 #
 #    要使用本模块, 首先到 xfyun.cn 注册一个开发者账号,
 #    之后创建一个新应用, 然后在应用管理的语音识别或者语音合同右边可以查看APPID API Key 和 Secret Key
-#    然后在 config.json 中填入这三个值
+#    然后在 config.json.example 中填入这三个值
 #
 #    配置说明：
 # {
@@ -37,7 +37,7 @@ class XunfeiVoice(Voice):
     def __init__(self):
         try:
             curdir = os.path.dirname(__file__)
-            config_path = os.path.join(curdir, "config.json")
+            config_path = os.path.join(curdir, "config.json.example")
             conf = None
             with open(config_path, "r") as fr:
                 conf = json.load(fr)

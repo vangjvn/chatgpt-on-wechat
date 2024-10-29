@@ -23,7 +23,7 @@ class Keyword(Plugin):
         super().__init__()
         try:
             curdir = os.path.dirname(__file__)
-            config_path = os.path.join(curdir, "config.json")
+            config_path = os.path.join(curdir, "config.json.example")
             conf = None
             if not os.path.exists(config_path):
                 logger.debug(f"[keyword]不存在配置文件{config_path}")

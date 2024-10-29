@@ -25,7 +25,7 @@ from voice.voice import Voice
         - 1837：四川话
     要使用本模块, 首先到 yuyin.baidu.com 注册一个开发者账号,
     之后创建一个新应用, 然后在应用管理的"查看key"中获得 API Key 和 Secret Key
-    然后在 config.json 中填入这两个值, 以及 app_id, dev_pid
+    然后在 config.json.example 中填入这两个值, 以及 app_id, dev_pid
     """
 
 
@@ -33,7 +33,7 @@ class BaiduVoice(Voice):
     def __init__(self):
         try:
             curdir = os.path.dirname(__file__)
-            config_path = os.path.join(curdir, "config.json")
+            config_path = os.path.join(curdir, "config.json.example")
             bconf = None
             if not os.path.exists(config_path):  # 如果没有配置文件，创建本地配置文件
                 bconf = {"lang": "zh", "ctp": 1, "spd": 5, "pit": 5, "vol": 5, "per": 0}

@@ -31,7 +31,7 @@ class BDunit(Plugin):
         try:
             conf = super().load_config()
             if not conf:
-                raise Exception("config.json not found")
+                raise Exception("config.json.example not found")
             self.service_id = conf["service_id"]
             self.api_key = conf["api_key"]
             self.secret_key = conf["secret_key"]
