@@ -53,9 +53,8 @@ class ChatChannel(Channel):
         if first_in:  # context首次传入时，receiver是None，根据类型设置receiver
             config = conf()
             cmsg = context["msg"]
-            user_data = conf().get_user_data(cmsg.from_user_id)
-            context["openai_api_key"] = user_data.get("openai_api_key")
-            context["gpt_model"] = user_data.get("gpt_model")
+            context["openai_api_key"] = config.get("open_ai_api_key")
+            context["gpt_model"] = config.get("model")
             # 这里加消息字段传入后面！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！
             print(f"消息字段：{cmsg}")
 
