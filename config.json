@@ -42,7 +42,7 @@
     "daily_contents": {
         "edu测试": "Sometimes Daddy Pig loses his glasses.\nPeppa, George, have you seen Daddy Pig's glasses? \nHe can't find them anywhere."
     },
-    "TTS_URL": "http://210.14.65.51:7777/api/tts",
+    "TTS_URL": "http://http://13.212.37.80:7777/api/tts",
     "wav_url": "http://210.14.65.51:7777/output_wavs/edu_english_root_01/zh-CN-XiaoxiaoMultilingualNeural/merged_20241022201238741171.wav",
     "wav_urls": {
         "edu测试": "http://210.14.65.51:7777/output_wavs/edu_english_root_01/zh-CN-XiaoxiaoMultilingualNeural/merged_20241029103056255807.wav"
