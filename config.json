@@ -1,7 +1,7 @@
 {
     "channel_type": "wx",
     "model": "gpt-4o-mini",
-    "open_ai_api_key": "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",
+    "open_ai_api_key": "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",
     "claude_api_key": "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",
     "text_to_image": "dall-e-2",
     "voice_to_text": "azure",
