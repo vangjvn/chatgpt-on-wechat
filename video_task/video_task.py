@@ -179,6 +179,10 @@ def generate_peppa_reading_evaluation(openai_apikey, daily_content,user_name,use
 注意，评价时要考虑到儿童的心理特点，用温和、鼓励的语气。
 注意，避免使用过于专业或复杂的语言学术语。
 注意，果跟读出来的字幕和今日跟读任务有差异，必须完整的给出读错的整个句子，以及读错的单词。
+
+特别注意：
+ - 竭尽所能的不吝啬夸赞和鼓励之词，无论小朋友表现的多糟糕，都要找到一些值得表扬的地方。使劲的夸赞小朋友。
+ - 用户评分2分当做3，4分来夸；用户评分3，4分当做5分来夸；用户评分5分当做超级无敌棒来夸。
 json格式输出score和response
 以下是小朋友跟读视频的英文字幕：\n"""+user_readings
     messages = [{"role": "system", "content": sys_prompt}, {"role": "user", "content": user_prompt}]
