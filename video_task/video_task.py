@@ -1,6 +1,7 @@
 from common.log import logger
 import requests
 import os
+import azure.cognitiveservices.speech as speechsdk
 from typing import List, Tuple, Optional
 import concurrent.futures
 from moviepy.editor import VideoFileClip
@@ -174,6 +175,10 @@ def generate_peppa_reading_evaluation(openai_apikey, daily_content,user_name,use
 如果跟读出来的字幕和今日跟读任务有差异，具体指出读错的单词或者少读漏读的句子等，不要编造需要改进的点。少部分错读也给4分，多处错读给3分，大部分错读给2分，完全不认识给1分。
 主要从完整度，单词准确度，等多个方面评价，对跟读情况进行评估和反馈,对比过往的跟读表现（比如前几天的跟读成绩或者今天的上一次的跟读成绩做比较）给出一些鼓励和具体的建议。
 请逐字逐句的对比小朋友的跟读内容和今日跟读任务的内容，给出评分和评价，适当的指出漏读、错读、发音不标准等。评价尽可能正面，鼓励小朋友继续学习。
+注意，如果跟读内容与原文差异过大，礼貌地请求重新提供更准确的跟读内容。告诉他可以@你询问今日跟读任务的内容，你会提供今日跟读任务的文本和音频。
+注意，评价时要考虑到儿童的心理特点，用温和、鼓励的语气。
+注意，避免使用过于专业或复杂的语言学术语。
+注意，果跟读出来的字幕和今日跟读任务有差异，必须完整的给出读错的整个句子，以及读错的单词。
 json格式输出score和response
 以下是小朋友跟读视频的英文字幕：\n"""+user_readings
     messages = [{"role": "system", "content": sys_prompt}, {"role": "user", "content": user_prompt}]
@@ -186,9 +191,16 @@ json格式输出score和response
 
 
 class AudioProcessor:
-    def __init__(self, api_base: str, api_key: str):
-        self.api_base = api_base
-        self.api_key = api_key
+    def __init__(self):
+        # 从配置文件获取Azure凭据
+        self.api_key = conf().get("azure_voice_api_key")
+        self.api_region = conf().get("azure_voice_region")
+        self.speech_config = speechsdk.SpeechConfig(
+            subscription=self.api_key,
+            region=self.api_region
+        )
+        # 设置语音识别语言
+        self.speech_config.speech_recognition_language = "en-US"  # en-US，zh-CN可以根据需要设置
 
     def extract_audio(self, video_path: str) -> str:
         """从视频中提取音频"""
@@ -228,18 +240,23 @@ class AudioProcessor:
             raise
 
     def transcribe_segment(self, segment_path: str) -> Tuple[str, str]:
-        """转录单个音频片段"""
+        """使用Azure转录单个音频片段"""
         try:
-            with open(segment_path, "rb") as file:
-                url = f'{self.api_base}/audio/transcriptions'
-                headers = {'Authorization': f'Bearer {self.api_key}'}
-                files = {"file": file}
-                data = {"model": "whisper-1"}
-                response = requests.post(url, headers=headers, files=files, data=data, timeout=60)
-                response.raise_for_status()
-                text = response.json()['text']
-                logger.info(f"Transcribed segment: {segment_path}")
-                return segment_path, text
+            audio_config = speechsdk.AudioConfig(filename=segment_path)
+            speech_recognizer = speechsdk.SpeechRecognizer(
+                speech_config=self.speech_config,
+                audio_config=audio_config
+            )
+
+            result = speech_recognizer.recognize_once()
+
+            if result.reason == speechsdk.ResultReason.RecognizedSpeech:
+                logger.info(f"Successfully transcribed segment: {segment_path}")
+                return segment_path, result.text
+            else:
+                logger.error(
+                    f"Failed to transcribe segment {segment_path}: {result.cancellation_details.error_details}")
+                return segment_path, ""
         except Exception as e:
             logger.error(f"Error transcribing segment {segment_path}: {str(e)}")
             return segment_path, ""
@@ -284,10 +301,8 @@ def process_video(context, conf):
 
         logger.info(f"Processing video: {video_path}")
 
-        api_base = conf().get("open_ai_api_base") or "https://api.openai.com/v1"
-        api_key = conf().get("open_ai_api_key")
 
-        processor = AudioProcessor(api_base, api_key)
+        processor = AudioProcessor()  # 使用Azure服务的AudioProcessor
 
         audio_path = processor.extract_audio(video_path)
         segments = processor.split_audio(audio_path)

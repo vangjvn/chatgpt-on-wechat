@@ -53,6 +53,7 @@ class UserManager:
             json.dump(user_data, f, indent=2)
 
     def update_user_score(self, user_id, user_name,score):
+        score = int(score)
         user_data = self.load_user(user_id)
         user_data['username'] = user_name
         if not user_data:
@@ -166,6 +167,6 @@ class UserManager:
         for user_file in os.listdir(self.file_path):
             user_data = self.load_user(user_file.split('.')[0])
             if user_data['last_update_date'] != today:
-                user_data['total_score'] = max(0, user_data['total_score'] - 3)  # Deduct 3 points, minimum 0
+                user_data['total_score'] = max(0, int(user_data['total_score']) - 3)  # Deduct 3 points, minimum 0
                 user_data['consecutive_days'] = 0
                 self.save_user(user_data)

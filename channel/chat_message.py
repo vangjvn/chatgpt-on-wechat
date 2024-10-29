@@ -45,14 +45,14 @@ class ChatMessage(object):
     to_user_id = None
     to_user_nickname = None
     other_user_id = None
-    other_user_nickname = None
+    other_user_nickname = None # 微信中是群名称
     my_msg = False
     self_display_name = None
 
     is_group = False
     is_at = False
     actual_user_id = None
-    actual_user_nickname = None
+    actual_user_nickname = None # 微信群聊中是群昵称
     at_list = None
 
     _prepare_fn = None

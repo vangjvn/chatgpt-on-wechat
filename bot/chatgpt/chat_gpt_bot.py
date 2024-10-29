@@ -54,8 +54,9 @@ class ChatGPTBot(Bot, OpenAIImage):
 
     def reply(self, query, context=None):
         # acquire reply content
-        user_id_hex = context["user_id_hex"]
-        actual_user_nickname = context["actual_user_nickname"]
+        user_id_hex = context["user_id_hex"] # 用户id
+        actual_user_nickname = context["actual_user_nickname"] # 用户昵称
+        group_name = context["other_user_nickname"] # 群名称
         if context.type == ContextType.TEXT:
             logger.info("[CHATGPT] query={}".format(query))
 
@@ -71,12 +72,19 @@ class ChatGPTBot(Bot, OpenAIImage):
             elif query == "#更新配置":
                 load_config()
                 reply = Reply(ReplyType.INFO, "配置已更新")
-            elif "更新跟读任务" in query:
-                task = query.replace("更新跟读任务", "")
-                update_config("daily_content",task)
+            elif "#跟读任务" in query:
+                group_name = query.split("#")[2]
+
+                task = query.replace(f"#跟读任务#{group_name}#", "")
+
+                daily_contents = conf().get("daily_contents")
+                daily_contents[group_name] = task
+                update_config("daily_contents",daily_contents)
                 wav_url = get_tts_file_url("edu_english_root_01","azure","zh-CN-XiaoxiaoMultilingualNeural",task)
-                update_config("wav_url", wav_url)
-                reply = Reply(ReplyType.INFO, f"跟读任务已更新：\n"+task[:(min(100,len(task)))]+ f"\n（如果过长，后面部分省略显示，跟读任务没有省略）" +f"""
+                wav_urls = conf().get("wav_urls")
+                wav_urls[group_name] = wav_url
+                update_config("wav_urls", wav_urls)
+                reply = Reply(ReplyType.INFO, f"跟读任务已更新：\n"+task[:(min(200,len(task)))]+ f"\n（如果过长，后面部分省略显示，跟读任务没有省略）" +f"""
 - [跟读内容参考音频]({wav_url})                
 """)
             if reply:
@@ -85,7 +93,7 @@ class ChatGPTBot(Bot, OpenAIImage):
             new_query = f"今天是{today}\n"
             if "跟读" in query or "今日" in query or "任务" in query or "今天" in query :
                 load_config()
-                task = conf().get("daily_content")
+                task = conf().get("daily_contents").get(group_name)
                 new_query = new_query + f"当用户问到今日任务、今日跟读等内容，请返回跟读内容原文，不要做任何修改，以下是跟读内容原文：\n{task}\n"
 
 
@@ -126,7 +134,7 @@ class ChatGPTBot(Bot, OpenAIImage):
                 if "跟读" in query or "今日" in query or "任务" in query or "今天" in query:
                     reply = Reply(ReplyType.TEXT, reply_content["content"]+f"""
 ## 这是跟读内容的参考音频：
-- [跟读内容参考音频]({conf().get("wav_url")})
+- [跟读内容参考音频]({conf().get("wav_urls").get(group_name)})
 """)
             else:
                 reply = Reply(ReplyType.ERROR, reply_content["content"])

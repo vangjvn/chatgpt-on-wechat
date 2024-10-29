@@ -62,6 +62,7 @@ class ChatChannel(Channel):
             user_id_hex = generate_user_id(cmsg.other_user_nickname, cmsg.actual_user_nickname)
             context["user_id_hex"] = user_id_hex
             context["actual_user_nickname"] = cmsg.actual_user_nickname
+            context["other_user_nickname"] = cmsg.other_user_nickname
             if context.get("isgroup", False):
                 group_name = cmsg.other_user_nickname
                 group_id = cmsg.other_user_id
@@ -243,12 +244,15 @@ class ChatChannel(Channel):
                         print(f"从视频中提取的文字: {text}")
                         # 这里根据context，自己构建一个回复逻辑的函数。
                         from video_task.video_task import generate_peppa_reading_evaluation
-                        daily_content = conf().get("daily_content")
+                        print("用户在群中的昵称：",actual_user_nickname)
+                        daily_content = conf().get("daily_contents").get(actual_user_nickname,"")
+                        print(f"每日跟读内容：{daily_content}")
                         user_info = User_manager.load_user(user_id_hex)
                         reply_str = generate_peppa_reading_evaluation(conf().get("open_ai_api_key"),daily_content,actual_user_nickname,user_info, text)
                         reply_json = json.loads(reply_str)
                         print(f"回复的json: {reply_json}")
                         score = reply_json['score']
+                        score = str(min(int(score)+1,5))
                         reply_text = reply_json['response']
                         User_manager.update_user_score(user_id_hex,actual_user_nickname, score)
                         print(f"更新用户得分为：{score}")
@@ -259,9 +263,6 @@ class ChatChannel(Channel):
                         achievements = User_manager.load_user(user_id_hex).get("achievements", [])
                         print(f"当前用户成就为：{achievements}")
                         res_reply = f"本次跟读得分为：{score}分\n评价：\n{reply_text}" + f"""
-_____________________
-你的跟读结果：
-{text}
 _____________________
 你的当前打卡级别：{cur_stage}
 你的当前打卡分数：{str(total_score)}
@@ -279,13 +280,75 @@ _____________________
                     print(f"txt文件路径：{txt_path}")
 
                     text = read_text_file(txt_path)
-                    update_config("daily_content", text)
-                    wav_url = get_tts_file_url("edu_english_root_01", "azure", "zh-CN-XiaoxiaoMultilingualNeural", text)
-                    update_config("wav_url", wav_url)
-                    reply = Reply(ReplyType.INFO, f"跟读任务已更新：\n" + text[:(
-                        min(100, len(text)))] + f"\n（如果过长，后面部分省略显示，跟读任务没有省略）" + f"""
-- [跟读内容参考音频]({wav_url})                
-""")
+                    # 读取text中第一行数据
+                    print(f"读取的文本数据：{text}")
+                    if text:
+                        # 获取第一行数据
+                        first_line = text.split('\n')[0].strip()
+
+                        # 判断第一行是否为空
+                        if first_line:
+                            try:
+                                data = first_line.split('#')
+                                if data[1] == "跟读任务":
+                                    # 群名称
+                                    group_name = data[2]
+                                    # 读取text后面的内容
+                                    content = '\n'.join(text.split('\n')[1:]).strip()
+
+                                    # 如果需要进一步处理content内容,可以继续添加代码
+                                    if content:
+                                        # 处理content的逻辑
+                                        print(f"群名称: {group_name}")
+                                        print(f"内容: {content}")
+                                        # 群白名单
+                                        group_name_white_list = conf().get("group_name_white_list", [])
+                                        # 如果群名称不在白名单中
+                                        if group_name not in group_name_white_list:
+                                            print(f"群 '{group_name}' 不在白名单中")
+                                            reply = Reply(ReplyType.INFO, f"跟读任务更新失败：\n" + f"群 '{group_name}' 不在白名单中")
+                                        else:
+                                            try:
+                                                # 获取当前的daily_contents字典
+                                                daily_contents = conf().get("daily_contents",{})
+
+                                                # 更新特定群的内容
+                                                daily_contents[group_name] = content
+
+                                                # 将更新后的daily_contents写回配置文件
+                                                if update_config("daily_contents", daily_contents):
+                                                    logger.info(f"成功更新群 '{group_name}' 的跟读内容")
+                                                    print(f"成功更新群 '{group_name}' 的跟读内容")
+                                                    wav_url = get_tts_file_url("edu_english_root_01", "azure",
+                                                                               "zh-CN-XiaoxiaoMultilingualNeural", content)
+                                                    wav_urls = conf().get("wav_urls", {})
+                                                    wav_urls[group_name] = wav_url
+                                                    update_config("wav_urls", wav_urls)
+                                                    reply = Reply(ReplyType.INFO, f"{group_name}的今日跟读任务已更新：\n" + content[:(
+                                                        min(200,
+                                                            len(content)))] + f"\n（如果过长，后面部分省略显示，跟读任务没有省略）" + f"""
+                                                    - [跟读内容参考音频]({wav_url})                
+                                                    """)
+
+                                                else:
+                                                    logger.error(f"更新群 '{group_name}' 的跟读内容失败")
+                                                    print(f"更新群 '{group_name}' 的跟读内容失败")
+
+                                            except Exception as e:
+                                                logger.error(f"处理跟读内容时发生错误: {str(e)}")
+                                                print(f"处理跟读内容时发生错误: {str(e)}")
+                                    else:
+                                        print("文件内容为空")
+                                else:
+                                    print("文件格式不正确,第一行应以'跟读任务'开头")
+                            except IndexError:
+                                print("文件格式不正确,请检查分隔符'#'是否存在")
+                        else:
+                            print("文件第一行为空")
+                    else:
+                        print("文件内容为空")
+
+
                 else:
                     pass
 

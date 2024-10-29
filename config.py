@@ -183,8 +183,10 @@ available_setting = {
     "Minimax_group_id": "",
     "Minimax_base_url": "",
     "daily_content": "hello,i am peppa pig,i am 5 years old,i am a little piggy.",
+    "daily_contents":{},
     "TTS_URL": "http://13.212.37.80:7777/api/tts",
-    "wav_url": ""
+    "wav_url": "",
+    "wav_urls": {}
 }
 
 
@@ -405,6 +407,50 @@ def update_config(key: str, value: any) -> bool:
         logger.error(f"更新配置失败: {str(e)}")
         return False
 
+
+def get_value_from_config(key: str) -> any:
+    """
+    从配置文件中获取指定键的值
+
+    :param key: 要获取的配置项键名
+    :return: 配置值，如果键不存在或发生错误则返回None
+    """
+    global config
+    config_path = "./config.json"
+
+    try:
+        # 检查键是否在可用设置中
+        if key not in available_setting:
+            logger.warning(f"配置项 '{key}' 不在可用设置列表中")
+            return None
+
+        # 优先从内存中的配置获取
+        if key in config:
+            return config[key]
+
+        # 如果内存中没有，则从文件读取
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                current_config = json.load(f)
+
+            if key in current_config:
+                # 更新内存中的配置
+                config[key] = current_config[key]
+                return current_config[key]
+            else:
+                logger.warning(f"配置项 '{key}' 在配置文件中不存在")
+                return None
+
+        except FileNotFoundError:
+            logger.error(f"配置文件 {config_path} 不存在")
+            return None
+        except json.JSONDecodeError:
+            logger.error("配置文件格式错误")
+            return None
+
+    except Exception as e:
+        logger.error(f"获取配置值时发生错误: {str(e)}")
+        return None
 
 from video_task.user_data import UserManager
 
