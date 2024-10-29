@@ -280,10 +280,10 @@ def drag_sensitive(config):
 
 def load_config():
     global config
-    config_path = "config.json.example"
+    config_path = "config.json"
     if not os.path.exists(config_path):
         logger.info("配置文件不存在，将使用config-template.json模板")
-        config_path = "config.json.example"
+        config_path = "config.json"
 
     config_str = read_file(config_path)
     logger.debug("[INIT] config str: {}".format(drag_sensitive(config_str)))
@@ -379,7 +379,7 @@ def update_config(key: str, value: any) -> bool:
     :return: 更新是否成功
     """
     global config
-    config_path = "config.json.example"
+    config_path = "config.json"
 
     try:
         # 确保键存在于可用设置中
@@ -416,7 +416,7 @@ def get_value_from_config(key: str) -> any:
     :return: 配置值，如果键不存在或发生错误则返回None
     """
     global config
-    config_path = "config.json.example"
+    config_path = "config.json"
 
     try:
         # 检查键是否在可用设置中

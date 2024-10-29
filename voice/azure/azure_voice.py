@@ -27,7 +27,7 @@ class AzureVoice(Voice):
     def __init__(self):
         try:
             curdir = os.path.dirname(__file__)
-            config_path = os.path.join(curdir, "config.json.example")
+            config_path = os.path.join(curdir, "config.json")
             config = None
             if not os.path.exists(config_path):  # 如果没有配置文件，创建本地配置文件
                 config = {

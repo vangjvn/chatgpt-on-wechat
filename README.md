@@ -133,7 +133,7 @@ pip3 install -r requirements-optional.txt
 配置文件的模板在根目录的`config-template.json`中，需复制该模板创建最终生效的 `config.json` 文件：
 
 ```bash
-  cp config.json.example config.json.example
+  cp config.json config.json
 ```
 
 然后在`config.json`中填入配置，以下是对默认配置的说明，可根据需要进行自定义修改（注意实际使用时请去掉注释，保证JSON格式的完整）：

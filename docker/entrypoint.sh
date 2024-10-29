@@ -3,7 +3,7 @@ set -e
 
 # build prefix
 CHATGPT_ON_WECHAT_PREFIX=${CHATGPT_ON_WECHAT_PREFIX:-""}
-# path to config.json.example
+# path to config.json
 CHATGPT_ON_WECHAT_CONFIG_PATH=${CHATGPT_ON_WECHAT_CONFIG_PATH:-""}
 # execution command line
 CHATGPT_ON_WECHAT_EXEC=${CHATGPT_ON_WECHAT_EXEC:-""}
@@ -27,7 +27,7 @@ if [ "$CHATGPT_ON_WECHAT_PREFIX" == "" ] ; then
     CHATGPT_ON_WECHAT_PREFIX=/app
 fi
 
-# CHATGPT_ON_WECHAT_CONFIG_PATH is empty, use '/app/config.json.example'
+# CHATGPT_ON_WECHAT_CONFIG_PATH is empty, use '/app/config.json'
 if [ "$CHATGPT_ON_WECHAT_CONFIG_PATH" == "" ] ; then
     CHATGPT_ON_WECHAT_CONFIG_PATH=$CHATGPT_ON_WECHAT_PREFIX/config.json
 fi
@@ -37,7 +37,7 @@ if [ "$CHATGPT_ON_WECHAT_EXEC" == "" ] ; then
     CHATGPT_ON_WECHAT_EXEC="python app.py"
 fi
 
-# modify content in config.json.example
+# modify content in config.json
 # if [ "$OPEN_AI_API_KEY" == "YOUR API KEY" ] || [ "$OPEN_AI_API_KEY" == "" ]; then
 #     echo -e "\033[31m[Warning] You need to set OPEN_AI_API_KEY before running!\033[0m"
 # fi

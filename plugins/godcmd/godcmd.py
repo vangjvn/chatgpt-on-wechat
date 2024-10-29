@@ -182,7 +182,7 @@ class Godcmd(Plugin):
     def __init__(self):
         super().__init__()
 
-        config_path = os.path.join(os.path.dirname(__file__), "config.json.example")
+        config_path = os.path.join(os.path.dirname(__file__), "config.json")
         gconf = super().load_config()
         if not gconf:
             if not os.path.exists(config_path):

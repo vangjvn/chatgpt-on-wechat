@@ -66,18 +66,18 @@ class PluginManager:
     def _load_all_config():
         """
         背景: 目前插件配置存放于每个插件目录的config.json下，docker运行时不方便进行映射，故增加统一管理的入口，优先
-        加载 plugins/config.json.example，原插件目录下的config.json 不受影响
+        加载 plugins/config.json，原插件目录下的config.json 不受影响
 
-        从 plugins/config.json.example 中加载所有插件的配置并写入 config.py 的全局配置中，供插件中使用
+        从 plugins/config.json 中加载所有插件的配置并写入 config.py 的全局配置中，供插件中使用
         插件实例中通过 config.pconf(plugin_name) 即可获取该插件的配置
         """
-        all_config_path = "./plugins/config.json.example"
+        all_config_path = "./plugins/config.json"
         try:
             if os.path.exists(all_config_path):
                 # read from all plugins config
                 with open(all_config_path, "r", encoding="utf-8") as f:
                     all_conf = json.load(f)
-                    logger.info(f"load all config from plugins/config.json.example: {all_conf}")
+                    logger.info(f"load all config from plugins/config.json: {all_conf}")
 
                 # write to global config
                 write_plugin_config(all_conf)

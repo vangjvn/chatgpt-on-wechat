@@ -29,7 +29,7 @@ class Banwords(Plugin):
             curdir = os.path.dirname(__file__)
             if not conf:
                 # 配置不存在则写入默认配置
-                config_path = os.path.join(curdir, "config.json.example")
+                config_path = os.path.join(curdir, "config.json")
                 if not os.path.exists(config_path):
                     conf = {"action": "ignore"}
                     with open(config_path, "w") as f:

@@ -12,7 +12,7 @@ NC='\033[0m'        # 无颜色
 export BASE_DIR=$(cd "$(dirname "$0")"; pwd)
 echo -e "${GREEN}📁 BASE_DIR: ${BASE_DIR}${NC}"
 
-# 检查 config.json.example 文件是否存在
+# 检查 config.json 文件是否存在
 check_config_file() {
     if [ ! -f "${BASE_DIR}/config.json" ]; then
         echo -e "${RED}❌ 错误：未找到 config.json 文件。请确保 config.json 存在于当前目录。${NC}"

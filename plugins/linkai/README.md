@@ -20,7 +20,7 @@
         "img_proxy": true,        # 是否对生成的图片使用代理，如果你是国外服务器，将这一项设置为false会获得更快的生成速度
         "max_tasks": 3,           # 支持同时提交的总任务个数
         "max_tasks_per_user": 1,  # 支持单个用户同时提交的任务个数
-        "use_image_create_prefix": true   # 是否使用全局的绘画触发词，如果开启将同时支持由`config.json.example`中的 image_create_prefix 配置触发
+        "use_image_create_prefix": true   # 是否使用全局的绘画触发词，如果开启将同时支持由`config.json`中的 image_create_prefix 配置触发
     },
     "summary": {
         "enabled": true,              # 文档总结和对话功能开关
