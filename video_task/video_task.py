@@ -253,6 +253,8 @@ class AudioProcessor:
 def process_video(context):
     """处理视频并返回转录文本"""
     try:
+        cmsg = context["msg"]
+        cmsg.prepare()
         video_path = context.content
         logger.info(f"Processing video: {video_path}")
 
