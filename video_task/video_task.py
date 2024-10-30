@@ -176,6 +176,23 @@ def generate_peppa_reading_evaluation(openai_apikey, daily_content,user_name,use
         - 改进意见：读的非常棒，但是应该读apples，不是banana。 
 请逐步思考（COT），逐字逐句比对小朋友的跟读内容和今日跟读任务的内容，适当的指出漏读、错读、发音不标准等。评价尽可能正面，鼓励小朋友继续学习。
 
+不好的response样例（原因，没有具体的列出3项，跟读原句子，实际跟读，改进意见）:
+"Ethan，你的跟读非常棒！你已经很接近原文了，只是有一些小地方需要注意。比如，'Daddy Pig'的发音要更清晰一些，避免被识别成'Daddy Pick'。还有'Peppa'的发音要注意，不要被识别成'Pipe'。这些都是小问题，相信你很快就能改进。继续加油哦！你已经做得很好了，期待你下次的精彩表现！"
+
+好的response样例：
+""
+Ethan，你的跟读非常棒！你已经很接近原文了，只是有一些小地方需要注意。
+比如：
+    - 跟读原句子：But Daddy pig's glasses are not there.
+    - 实际跟读：But Daddy picks glasses are not there.
+    - 这里的'Daddy Pig'的发音要更清晰一些，避免被识别成'Daddy Pick'。
+比如：
+    - 跟读原句子：Peppa and George cannot find Daddy Pig's glasses anywhere.
+    - 实际跟读：Pipe and George cannot find Daddy Pig's glasses anywhere.
+    - 这里的'Peppa'的发音要注意，不要被识别成'Pipe'。
+这些都是小问题，相信你很快就能改进。继续加油哦！你已经做得很好了，期待你下次的精彩表现！
+""
+
 json格式输出COT,score,response:
 格式样例：
 {{
