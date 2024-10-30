@@ -192,6 +192,7 @@ class WechatChannel(ChatChannel):
     @time_checker
     @_check
     def handle_group(self, cmsg: ChatMessage):
+        logger.info("cmsg(rowmsg):{}".format(cmsg.rawmsg))
         if cmsg.ctype == ContextType.VOICE:
             if conf().get("group_speech_recognition") != True:
                 return

@@ -1,13 +1,22 @@
 from common.log import logger
 import requests
 import os
+import time
 import azure.cognitiveservices.speech as speechsdk
 from typing import List, Tuple, Optional
 import concurrent.futures
 from moviepy.editor import VideoFileClip
 from pydub import AudioSegment
 from config import conf
-
+import concurrent.futures
+import os
+from typing import List, Tuple
+from moviepy.editor import VideoFileClip
+from pydub import AudioSegment
+import azure.cognitiveservices.speech as speechsdk
+from tenacity import retry, stop_after_attempt, wait_fixed
+from concurrent.futures import ThreadPoolExecutor
+from threading import Semaphore
 
 def get_response_from_gpt(openai_apikey, model, messages, temperature=0, max_tokens=4000, response_format=None):
     if response_format is not None:
@@ -111,11 +120,7 @@ def generate_peppa_reading_evaluation_prompt(daily_content):
 4. 个性化反馈：根据分析结果提供针对性的改进建议。
 
 评分标准 (1-5分):
-1分：需要更多练习，加油！
-2分：有进步空间，继续努力！
-3分：表现不错，再接再厉！
-4分：非常棒，继续保持！
-5分：太棒了，你是小小英语达人！
+
 
 要求:
 1. 精确分析：准确识别跟读内容与原文的差异。
@@ -133,7 +138,7 @@ def generate_peppa_reading_evaluation_prompt(daily_content):
 1. 总体评分：给出1-5分的评分并简要说明。
 2. 发音分析：指出发音优秀的地方和需要改进的音素。
 3. 流畅度评价：评价跟读的流畅程度和节奏感。
-4. 具体建议：提供2-3个针对性的改进建议。
+4. 具体建议：如有改进地方，就提供个针对性的改进建议。以表扬和鼓励为主。
 5. 鼓励总结：以积极的话语结束，鼓励继续学习。
 
 今日跟读内容:
@@ -145,15 +150,16 @@ def generate_peppa_reading_evaluation_prompt(daily_content):
 3. 如果跟读内容与原文差异过大，礼貌地请求重新提供更准确的跟读内容。
 4. 强调进步和努力的重要性，而不仅仅是结果。
 
-请根据以上指南，对小朋友的跟读情况进行评估和反馈。
+请根据以上指南，逐步思考（COT），对小朋友的跟读情况进行评估和反馈，尽可能不指出小错误，鼓励为主
 评分要考虑到跟读材料的篇幅和难度，尽可能给出具体的建议和鼓励。尽可能给出满分或者高分以鼓励小朋友继续学习的动力。
 
 json格式输出。
-仅输出分数score和评价内容response。
+仅输出逐步思考COT,分数score和评价内容response。
 示例输出：
 {{
+    "COT": "逐字逐句比对小朋友的跟读内容和今日跟读任务的内容...",
     "score": 5,
-    "response": ""
+    "response": "...评价内容..."
 }}
 
 """
@@ -164,29 +170,37 @@ def generate_peppa_reading_evaluation(openai_apikey, daily_content,user_name,use
     # 生成评估的prompt
     sys_prompt = generate_peppa_reading_evaluation_prompt(daily_content)
     # 将用户的跟读内容加入到prompt中
-    model = "gpt-4o-mini"
+    model = "gpt-4o"
 
     user_prompt = f"""
 这是{user_name}小朋友的过往跟读情况:
 {str(user_info)}  
 
 你是通过对比小朋友的跟读识别出来的字幕与今日跟读任务做比较来考评跟读的，
-只要跟读出来的字幕和今日跟读任务几乎一致，就说明跟读的很好，直接给5分，不要编造需要改进的点。
-如果跟读出来的字幕和今日跟读任务有差异，具体指出读错的单词或者少读漏读的句子等，不要编造需要改进的点。少部分错读也给4分，多处错读给3分，大部分错读给2分，完全不认识给1分。
+如果跟读出来的字幕和今日跟读任务有差异，少部分错读也给5分，多处错读给4分，大部分错读给3分，不要给出2分一下评分，如果跟读内容与原文差异过大，礼貌地请求重新提供更准确的跟读内容。告诉他可以@你询问今日跟读任务的内容，你会提供今日跟读任务的文本和音频。
 主要从完整度，单词准确度，等多个方面评价，对跟读情况进行评估和反馈,对比过往的跟读表现（比如前几天的跟读成绩或者今天的上一次的跟读成绩做比较）给出一些鼓励和具体的建议。
-请逐字逐句的对比小朋友的跟读内容和今日跟读任务的内容，给出评分和评价，适当的指出漏读、错读、发音不标准等。评价尽可能正面，鼓励小朋友继续学习。
-注意，如果跟读内容与原文差异过大，礼貌地请求重新提供更准确的跟读内容。告诉他可以@你询问今日跟读任务的内容，你会提供今日跟读任务的文本和音频。
+
+请逐步思考（COT），逐字逐句比对小朋友的跟读内容和今日跟读任务的内容，适当的指出漏读、错读、发音不标准等。评价尽可能正面，鼓励小朋友继续学习。
+
 注意，评价时要考虑到儿童的心理特点，用温和、鼓励的语气。
 注意，避免使用过于专业或复杂的语言学术语。
 注意，如果跟读出来的字幕和今日跟读任务有差异，必须完整的给出读错的整个句子的原文和读错的句子，并支出读错的单词，以及改进意见。
-比如：
-跟读原句子：I like apples.
-实际跟读：I like apple.
-改进意见：注意apples的发音，s的发音要清晰。
+    比如：
+        跟读原句子：I like apples.
+        实际跟读：I like apple.
+        改进意见：读的非常棒，可能apples的发音，s的发音可以更清晰一些。
+如果跟读出来的字幕和今日跟读任务几乎一致，或者少数错误，就说明跟读的很好，直接给5分，不要编造需要改进的点。
 特别注意：
  - 竭尽所能的不吝啬夸赞和鼓励之词，无论小朋友表现的多糟糕，都要找到一些值得表扬的地方。使劲的夸赞小朋友。
- - 用户评分2分当做3，4分来夸；用户评分3，4分当做5分来夸；用户评分5分当做超级无敌棒来夸。
-json格式输出score和response
+ - 用户评分3分以下当做4分来夸赞小朋友；用户评分4分以上都当做满分超级无敌棒来夸赞。
+
+json格式输出COT,score,response:
+格式样例：
+{{
+    "COT": "逐字逐句比对小朋友的跟读内容和今日跟读任务的内容...",
+    "score": "#给出1-5分的评分",
+    "response": "...评价内容..."
+}}
 以下是小朋友跟读视频的英文字幕：\n"""+user_readings
     messages = [{"role": "system", "content": sys_prompt}, {"role": "user", "content": user_prompt}]
 
@@ -199,15 +213,14 @@ json格式输出score和response
 
 class AudioProcessor:
     def __init__(self):
-        # 从配置文件获取Azure凭据
         self.api_key = conf().get("azure_voice_api_key")
         self.api_region = conf().get("azure_voice_region")
         self.speech_config = speechsdk.SpeechConfig(
             subscription=self.api_key,
             region=self.api_region
         )
-        # 设置语音识别语言
-        self.speech_config.speech_recognition_language = "en-US"  # en-US，zh-CN可以根据需要设置
+        self.speech_config.speech_recognition_language = "en-US"
+        self.semaphore = Semaphore(80)  # 限制并发数为80
 
     def extract_audio(self, video_path: str) -> str:
         """从视频中提取音频"""
@@ -219,86 +232,96 @@ class AudioProcessor:
             return audio_path
         except Exception as e:
             logger.error(f"Error extracting audio: {str(e)}")
-            raise
+            return ""
 
-    def split_audio(self, audio_path: str, segment_length: int = 55000, overlap: int = 5000) -> List[str]:
-        """将音频分割成重叠的片段"""
+    def split_audio(self, audio_path: str) -> List[str]:
+        """使用VAD动态切割音频"""
         try:
             audio = AudioSegment.from_wav(audio_path)
-            duration = len(audio)
             segments = []
 
-            # 如果音频长度小于segment_length，直接返回整个音频
-            if duration <= segment_length:
-                segments.append(audio_path)
-                logger.info(f"Audio {audio_path} is shorter than segment length, using as a single segment")
-                return segments
-
-            for start in range(0, duration, segment_length - overlap):
-                end = min(start + segment_length, duration)
-                segment = audio[start:end]
-                segment_path = f"{audio_path[:-4]}_{start}_{end}.wav"
-                segment.export(segment_path, format="wav")
-                segments.append(segment_path)
-            logger.info(f"Audio {audio_path} split into {len(segments)} segments")
-            return segments
-        except Exception as e:
-            logger.error(f"Error splitting audio: {str(e)}")
-            raise
-
-    def transcribe_segment(self, segment_path: str) -> Tuple[str, str]:
-        """使用Azure转录单个音频片段"""
-        try:
-            audio_config = speechsdk.AudioConfig(filename=segment_path)
+            # 使用Azure的语音SDK进行语音活动检测(VAD)
+            audio_config = speechsdk.AudioConfig(filename=audio_path)
             speech_recognizer = speechsdk.SpeechRecognizer(
                 speech_config=self.speech_config,
                 audio_config=audio_config
             )
 
-            result = speech_recognizer.recognize_once()
+            done = False
+
+            def recognizing_callback(evt):
+                nonlocal done
+                if evt.result.reason == speechsdk.ResultReason.RecognizingSpeech:
+                    segment = audio[
+                              evt.result.offset_in_ticks // 10000: evt.result.offset_in_ticks // 10000 + evt.result.duration_in_ticks // 10000]
+                    segment_path = f"{audio_path[:-4]}_{evt.result.offset_in_ticks}_{evt.result.offset_in_ticks + evt.result.duration_in_ticks}.wav"
+                    segment.export(segment_path, format="wav")
+                    segments.append(segment_path)
+                elif evt.result.reason == speechsdk.ResultReason.NoMatch:
+                    done = True
+
+            speech_recognizer.recognizing.connect(recognizing_callback)
+            speech_recognizer.recognized.connect(lambda evt: print('RECOGNIZED: {}'.format(evt)))
+            speech_recognizer.session_started.connect(lambda evt: print('SESSION STARTED: {}'.format(evt)))
+            speech_recognizer.session_stopped.connect(lambda evt: print('SESSION STOPPED {}'.format(evt)))
+            speech_recognizer.canceled.connect(lambda evt: print('CANCELED {}'.format(evt)))
+
+            speech_recognizer.start_continuous_recognition()
+            while not done:
+                time.sleep(0.5)
+            speech_recognizer.stop_continuous_recognition()
+
+            logger.info(f"Audio {audio_path} split into {len(segments)} segments")
+            return segments
+        except Exception as e:
+            logger.error(f"Error splitting audio: {str(e)}")
+            return []
+
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
+    def transcribe_segment(self, segment_path: str) -> Tuple[str, str]:
+        """使用Azure转录单个音频片段,失败自动重试"""
+        try:
+            with self.semaphore:
+                audio_config = speechsdk.AudioConfig(filename=segment_path)
+                speech_recognizer = speechsdk.SpeechRecognizer(speech_config=self.speech_config,
+                                                               audio_config=audio_config)
+                result = speech_recognizer.recognize_once()
 
             if result.reason == speechsdk.ResultReason.RecognizedSpeech:
                 logger.info(f"Successfully transcribed segment: {segment_path}")
                 return segment_path, result.text
             else:
-                logger.error(
-                    f"Failed to transcribe segment {segment_path}: {result.cancellation_details.error_details}")
+                logger.warning(f"No speech recognized in segment {segment_path}: {result.no_match_details}")
                 return segment_path, ""
         except Exception as e:
             logger.error(f"Error transcribing segment {segment_path}: {str(e)}")
-            return segment_path, ""
+            raise
 
     def transcribe_audio(self, segments: List[str]) -> str:
         """并发转录所有音频片段"""
+        full_text = ""
         try:
             if not segments:
                 logger.warning("No audio segments to transcribe")
                 return ""
 
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                results = list(executor.map(self.transcribe_segment, segments))
+                futures = [executor.submit(self.transcribe_segment, segment) for segment in segments]
+                results = [future.result() for future in concurrent.futures.as_completed(futures)]
 
-            # 如果只有一个片段，直接返回其转录结果
-            if len(results) == 1:
-                return results[0][1]
 
-            # 按原始顺序排序结果
-            sorted_results = sorted(results, key=lambda x: int(x[0].split('_')[-2]))
-
-            # 合并文本，去除重复
-            full_text = ""
-            for _, text in sorted_results:
-                if text not in full_text[-100:]:  # 检查最后100个字符以避免重复
+            for segment_path, text in sorted(results, key=lambda x: int(x[0].split('_')[-2])):
+                if len(text) > 0 and text not in full_text:
                     full_text += text + " "
 
             logger.info("All segments transcribed and merged")
             return full_text.strip()
         except Exception as e:
             logger.error(f"Error in transcribe_audio: {str(e)}")
-            raise
+            return full_text.strip()  # 返回已转录的部分文本
 
 
-def process_video(context, conf):
+def process_video(context):
     """处理视频并返回转录文本"""
     try:
         cmsg = context["msg"]

@@ -119,23 +119,84 @@ def produce_msg(core, msgList):
                 'Text': m['RecommendInfo'], }
         elif m['MsgType'] in (43, 62): # tiny video
             msgId = m['MsgId']
+            # def download_video(videoDir=None):
+            #     url = '%s/webwxgetvideo' % core.loginInfo['url']
+            #     params = {
+            #         'msgid': msgId,
+            #         'skey': core.loginInfo['skey'],}
+            #     headers = {'Range': 'bytes=0-', 'User-Agent' : config.USER_AGENT }
+            #     r = core.s.get(url, params=params, headers=headers, stream=True,timeout=3)
+            #     tempStorage = io.BytesIO()
+            #     for block in r.iter_content(1024):
+            #         tempStorage.write(block)
+            #     if videoDir is None:
+            #         return tempStorage.getvalue()
+            #     with open(videoDir, 'wb') as f:
+            #         f.write(tempStorage.getvalue())
+            #     return ReturnValue({'BaseResponse': {
+            #         'ErrMsg': 'Successfully downloaded',
+            #         'Ret': 0, }})
+
             def download_video(videoDir=None):
                 url = '%s/webwxgetvideo' % core.loginInfo['url']
-                params = {
-                    'msgid': msgId,
-                    'skey': core.loginInfo['skey'],}
-                headers = {'Range': 'bytes=0-', 'User-Agent' : config.USER_AGENT }
-                r = core.s.get(url, params=params, headers=headers, stream=True)
-                tempStorage = io.BytesIO()
-                for block in r.iter_content(1024):
-                    tempStorage.write(block)
-                if videoDir is None:
-                    return tempStorage.getvalue()
-                with open(videoDir, 'wb') as f:
-                    f.write(tempStorage.getvalue())
-                return ReturnValue({'BaseResponse': {
-                    'ErrMsg': 'Successfully downloaded',
-                    'Ret': 0, }})
+
+                # 检查视频宽度，决定使用哪种下载方式
+                if m.get('ImgHeight', 0) <= 240:  # 压缩后的视频
+                    params = {
+                        'msgid': msgId,
+                        'skey': core.loginInfo['skey'],
+                    }
+                    headers = {
+                        'Range': 'bytes=0-',
+                        'User-Agent': config.USER_AGENT
+                    }
+
+                    try:
+                        r = core.s.get(url, params=params, headers=headers, stream=True)
+                        tempStorage = io.BytesIO()
+                        for block in r.iter_content(1024):
+                            tempStorage.write(block)
+                        if videoDir is None:
+                            return tempStorage.getvalue()
+                        with open(videoDir, 'wb') as f:
+                            f.write(tempStorage.getvalue())
+                        return ReturnValue({'BaseResponse': {
+                            'ErrMsg': 'Successfully downloaded',
+                            'Ret': 0,
+                        }})
+                    except Exception as e:
+                        logger.error(f"Error downloading compressed video: {str(e)}")
+                        raise
+
+                else:  # 原始视频，使用 webwxgetmedia 接口
+                    cookiesList = {name: data for name, data in core.s.cookies.items()}
+                    url = core.loginInfo['fileUrl'] + '/webwxgetmedia'
+                    params = {
+                        'sender': m['FromUserName'],
+                        'mediaid': m['MediaId'],
+                        'filename': m['FileName'],
+                        'fromuser': core.loginInfo['wxuin'],
+                        'pass_ticket': 'undefined',
+                        'webwx_data_ticket': cookiesList['webwx_data_ticket'],
+                    }
+                    headers = {'User-Agent': config.USER_AGENT}
+
+                    try:
+                        r = core.s.get(url, params=params, stream=True, headers=headers)
+                        tempStorage = io.BytesIO()
+                        for block in r.iter_content(1024):
+                            tempStorage.write(block)
+                        if videoDir is None:
+                            return tempStorage.getvalue()
+                        with open(videoDir, 'wb') as f:
+                            f.write(tempStorage.getvalue())
+                        return ReturnValue({'BaseResponse': {
+                            'ErrMsg': 'Successfully downloaded',
+                            'Ret': 0,
+                        }})
+                    except Exception as e:
+                        logger.error(f"Error downloading original video: {str(e)}")
+                        raise
             msg = {
                 'Type': 'Video',
                 'FileName' : '%s.mp4' % time.strftime('%y%m%d-%H%M%S', time.localtime()),

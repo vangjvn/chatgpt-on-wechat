@@ -54,6 +54,7 @@ class ChatMessage(object):
     actual_user_id = None
     actual_user_nickname = None # 微信群聊中是群昵称
     at_list = None
+    rawmsg = None
 
     _prepare_fn = None
     _prepared = False
@@ -61,7 +62,7 @@ class ChatMessage(object):
 
     def __init__(self, _rawmsg):
         self._rawmsg = _rawmsg
-
+        self.rawmsg = _rawmsg
     def prepare(self):
         if self._prepare_fn and not self._prepared:
             self._prepared = True
@@ -83,5 +84,6 @@ class ChatMessage(object):
             self.is_at,
             self.actual_user_id,
             self.actual_user_nickname,
-            self.at_list
+            self.at_list,
+            self.rawmsg
         )

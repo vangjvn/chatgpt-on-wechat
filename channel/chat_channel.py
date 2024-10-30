@@ -236,7 +236,7 @@ class ChatChannel(Channel):
                 # 提取视频中的音频voice，然后进行语音识别转成文字
                 try:
 
-                    text = process_video(context, conf)
+                    text = process_video(context)
 
                     if text:
                         # 4. 构建任务，并采用语音回复
