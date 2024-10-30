@@ -180,6 +180,7 @@ def generate_peppa_reading_evaluation(openai_apikey, daily_content,user_name,use
         实际跟读：I like apple.
         改进意见：读的非常棒，可能apples的发音，s的发音可以更清晰一些。
 如果跟读出来的字幕和今日跟读任务几乎一致，或者少数错误，就说明跟读的很好，直接给5分，不要编造需要改进的点。
+对句子流畅度、重复发音放宽松标准,对于单词发音错误，导致识别的文字和原句差别较大的提高标准，对于单词发音错误，导致识别的文字和原句差别较小的放宽标准。
 特别注意：
  - 竭尽所能的不吝啬夸赞和鼓励之词，无论小朋友表现的多糟糕，都要找到一些值得表扬的地方。使劲的夸赞小朋友。
  - 用户评分3分以下当做4分来夸赞小朋友；用户评分4分以上都当做满分超级无敌棒来夸赞。
@@ -268,7 +269,7 @@ def process_video(context):
 
         # 转录音频
         text = processor.transcribe_audio(audio_path)
-
+        logger.info(f"Transcription result: {text}")
         # 删除临时文件
         os.remove(audio_path)
         os.remove(video_path)

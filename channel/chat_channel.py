@@ -251,7 +251,7 @@ class ChatChannel(Channel):
                         reply_json = json.loads(reply_str)
                         print(f"回复的json: {reply_json}")
                         score = reply_json['score']
-                        score = str(min(int(score)+1,5))
+                        # score = str(min(int(score)+1,5))
                         reply_text = reply_json['response']
                         User_manager.update_user_score(user_id_hex,actual_user_nickname, score)
                         print(f"更新用户得分为：{score}")
