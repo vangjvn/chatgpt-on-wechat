@@ -216,35 +216,63 @@ class AudioProcessor:
         """转录长音频文件"""
         try:
             audio_input = speechsdk.AudioConfig(filename=audio_path)
-            speech_recognizer = speechsdk.SpeechRecognizer(speech_config=self.speech_config, audio_config=audio_input)
+            speech_recognizer = speechsdk.SpeechRecognizer(
+                speech_config=self.speech_config,
+                audio_config=audio_input
+            )
 
             done = False
-            transcription = []
+            all_results = []
 
-            def handle_final_result(evt):
-                nonlocal done
+            # 处理中间识别结果
+            def recognizing_cb(evt):
+                logger.debug(f'RECOGNIZING: {evt.result.text}')
+
+            # 处理最终识别结果
+            def recognized_cb(evt):
                 if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
-                    transcription.append(evt.result.text)
+                    logger.info(f'RECOGNIZED: {evt.result.text}')
+                    all_results.append(evt.result.text)
                 elif evt.result.reason == speechsdk.ResultReason.NoMatch:
-                    logger.warning(f"No speech could be recognized: {evt.result.no_match_details}")
-                elif evt.result.reason == speechsdk.ResultReason.Canceled:
-                    cancellation_details = evt.result.cancellation_details
-                    logger.warning(f"Speech Recognition canceled: {cancellation_details.reason}")
-                    if cancellation_details.reason == speechsdk.CancellationReason.Error:
-                        logger.warning(f"Error details: {cancellation_details.error_details}")
+                    logger.warning(f"NOMATCH: {evt.result.no_match_details}")
+
+            # 处理取消和错误情况
+            def canceled_cb(evt):
+                nonlocal done
+                logger.warning(f'CANCELED: {evt}')
+                if evt.reason == speechsdk.CancellationReason.Error:
+                    logger.error(f"Error details: {evt.error_details}")
                 done = True
 
-            speech_recognizer.recognized.connect(handle_final_result)
-            speech_recognizer.session_started.connect(lambda evt: logger.info('Session started: {}'.format(evt)))
-            speech_recognizer.session_stopped.connect(lambda evt: logger.info('Session stopped {}'.format(evt)))
-            speech_recognizer.canceled.connect(lambda evt: logger.warning('CANCELED {}'.format(evt)))
+            # 处理会话结束
+            def session_stopped_cb(evt):
+                nonlocal done
+                logger.info(f'SESSION STOPPED {evt}')
+                done = True
 
+            # 连接所有回调事件
+            speech_recognizer.recognizing.connect(recognizing_cb)
+            speech_recognizer.recognized.connect(recognized_cb)
+            speech_recognizer.session_started.connect(
+                lambda evt: logger.info(f'SESSION STARTED: {evt}')
+            )
+            speech_recognizer.session_stopped.connect(session_stopped_cb)
+            speech_recognizer.canceled.connect(canceled_cb)
+
+            # 开始连续识别
             speech_recognizer.start_continuous_recognition()
+
+            # 等待识别完成
             while not done:
-                time.sleep(0.5)
+                time.sleep(.5)
+
+            # 确保所有识别都完成后再停止
             speech_recognizer.stop_continuous_recognition()
 
-            return " ".join(transcription)
+            # 合并所有识别结果
+            final_text = " ".join(all_results)
+            logger.info(f"Final transcription length: {len(final_text.split())} words")
+            return final_text
 
         except Exception as e:
             logger.error(f"Error transcribing audio: {str(e)}")
