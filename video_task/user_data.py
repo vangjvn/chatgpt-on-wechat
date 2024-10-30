@@ -63,22 +63,19 @@ class UserManager:
         is_new_day = user_data['last_update_date'] != today
         previous_score = user_data['current_day_score']
         if is_new_day:
-            # New day
+            # New day - 直接将今天的分数加到总分上
+            user_data['total_score'] += score
             self.handle_new_day(user_data, score, today)
         else:
-            # Same day, update only if score is higher
+            # 同一天 - 只有当新分数更高时才增加总分差值
             if score > user_data['current_day_score']:
+                score_diff = score - user_data['current_day_score']
+                user_data['total_score'] += score_diff
                 user_data['current_day_score'] = score
                 user_data['scores_history'][0]['score'] = score
 
-        # Calculate score difference
-        score_diff = max(0, user_data['current_day_score'] - previous_score)
-
-        # Update total score
-        user_data['total_score'] += score_diff
-
         # Check for achievements and rewards (only if score improved)
-        if score_diff > 0:
+        if is_new_day or score > user_data['current_day_score']:
             self.check_achievements(user_data)
             self.apply_rewards(user_data, is_new_day)
 
