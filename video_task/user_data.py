@@ -37,15 +37,23 @@ class UserManager:
         today = datetime.now().strftime("%Y-%m-%d")
         return {
             "user_id": user_id,
-            "username": f"",  # Default username
+            "username": "",
             "level": "青铜",
             "total_score": 0,
             "current_day_score": 0,
             "last_update_date": today,
             "consecutive_days": 0,
             "scores_history": [{"date": today, "score": 0}],
-            "achievements": [],
-            "rewards": []
+            "achievements": {
+                "首次满分": {"achieved": False, "date": None},
+                "连续打卡3天": {"achieved": False, "date": None, "bonus": 1},
+                "连续打卡5天": {"achieved": False, "date": None, "bonus": 2},
+                "连续打卡7天": {"achieved": False, "date": None, "bonus": 3}
+            },
+            "rewards": {
+                "首次满分": {"achieved": False, "date": None, "amount": 10},
+                "连续打卡": {"achieved": False, "date": None, "amount": 1}
+            }
         }
 
     def save_user(self, user_data):
@@ -101,10 +109,21 @@ class UserManager:
         user_data['last_update_date'] = today
 
     def check_achievements(self, user_data):
-        # Check for "首次满分" achievement
-        if user_data['current_day_score'] == 5 and not any(a['name'] == "首次满分" for a in user_data['achievements']):
-            user_data['achievements'].append(
-                {"name": "首次满分", "achieved": True, "date": user_data['last_update_date']})
+        today = user_data['last_update_date']
+
+        # 检查首次满分
+        if user_data['current_day_score'] == 5 and not user_data['achievements']['首次满分']['achieved']:
+            user_data['achievements']['首次满分'] = {
+                "achieved": True,
+                "date": today
+            }
+            # 首次满分奖励
+            user_data['rewards']['首次满分'] = {
+                "achieved": True,
+                "date": today,
+                "amount": 10
+            }
+            user_data['total_score'] += 10
 
     def apply_rewards(self, user_data, is_new_day):
         # Apply reward only if it's a new day or the score improved to 5
@@ -114,33 +133,51 @@ class UserManager:
 
     def check_consecutive_days_achievement(self, user_data):
         consecutive_days = user_data['consecutive_days']
+        today = user_data['last_update_date']
+
+        # 检查连续打卡成就
         achievements_to_check = [
             ("连续打卡3天", 3),
             ("连续打卡5天", 5),
             ("连续打卡7天", 7)
         ]
 
+        # 给予连续打卡基础奖励（≥7天每天1分）
+        if consecutive_days >= 7:
+            user_data['rewards']['连续打卡'] = {
+                "achieved": True,
+                "date": today,
+                "amount": 1
+            }
+            user_data['total_score'] += 1
+
+        # 给予达到特定天数的额外奖励
         for achievement_name, days_required in achievements_to_check:
-            if consecutive_days >= days_required and not any(
-                    a['name'] == achievement_name for a in user_data['achievements']):
-                user_data['achievements'].append({
-                    "name": achievement_name,
+            if consecutive_days == days_required and not user_data['achievements'][achievement_name]['achieved']:
+                user_data['achievements'][achievement_name] = {
                     "achieved": True,
-                    "date": user_data['last_update_date']
-                })
+                    "date": today,
+                    "bonus": days_required
+                }
+                # 达到特定天数时给予额外奖励
+                user_data['total_score'] += 1
 
     def remove_consecutive_days_achievements(self, user_data):
-        achievements_to_remove = ["连续打卡3天", "连续打卡5天", "连续打卡7天"]
-        user_data['achievements'] = [a for a in user_data['achievements'] if a['name'] not in achievements_to_remove]
+        # 重置连续打卡相关的成就和奖励
+        achievements_to_reset = ["连续打卡3天", "连续打卡5天", "连续打卡7天"]
+        for achievement in achievements_to_reset:
+            user_data['achievements'][achievement] = {
+                "achieved": False,
+                "date": None,
+                "bonus": int(achievement[4:-1])  # 提取天数
+            }
 
-    def remove_achievement(self, user_id, achievement_name):
-        user_data = self.load_user(user_id)
-        if not user_data:
-            return None
-
-        user_data['achievements'] = [a for a in user_data['achievements'] if a['name'] != achievement_name]
-        self.save_user(user_data)
-        return user_data
+        # 重置连续打卡奖励
+        user_data['rewards']['连续打卡'] = {
+            "achieved": False,
+            "date": None,
+            "amount": 1
+        }
 
     def update_level(self, user_data):
         # Define level thresholds
