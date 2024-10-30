@@ -2,21 +2,11 @@ from common.log import logger
 import requests
 import os
 import time
-import azure.cognitiveservices.speech as speechsdk
-from typing import List, Tuple, Optional
-import concurrent.futures
-from moviepy.editor import VideoFileClip
-from pydub import AudioSegment
+from typing import Optional
 from config import conf
-import concurrent.futures
-import os
-from typing import List, Tuple
 from moviepy.editor import VideoFileClip
-from pydub import AudioSegment
 import azure.cognitiveservices.speech as speechsdk
-from tenacity import retry, stop_after_attempt, wait_fixed
-from concurrent.futures import ThreadPoolExecutor
-from threading import Semaphore
+
 
 def get_response_from_gpt(openai_apikey, model, messages, temperature=0, max_tokens=4000, response_format=None):
     if response_format is not None:
@@ -220,135 +210,70 @@ class AudioProcessor:
             region=self.api_region
         )
         self.speech_config.speech_recognition_language = "en-US"
-        self.semaphore = Semaphore(80)  # 限制并发数为80
 
-    def extract_audio(self, video_path: str) -> str:
-        """从视频中提取音频"""
+    def transcribe_audio(self, audio_path: str) -> str:
+        """转录长音频文件"""
         try:
-            audio_path = os.path.splitext(video_path)[0] + ".wav"
-            video = VideoFileClip(video_path)
-            video.audio.write_audiofile(audio_path)
-            logger.info(f"Audio extracted from {video_path} to {audio_path}")
-            return audio_path
-        except Exception as e:
-            logger.error(f"Error extracting audio: {str(e)}")
-            return ""
-
-    def split_audio(self, audio_path: str) -> List[str]:
-        """使用VAD动态切割音频"""
-        try:
-            audio = AudioSegment.from_wav(audio_path)
-            segments = []
-
-            # 使用Azure的语音SDK进行语音活动检测(VAD)
-            audio_config = speechsdk.AudioConfig(filename=audio_path)
-            speech_recognizer = speechsdk.SpeechRecognizer(
-                speech_config=self.speech_config,
-                audio_config=audio_config
-            )
+            audio_input = speechsdk.AudioConfig(filename=audio_path)
+            speech_recognizer = speechsdk.SpeechRecognizer(speech_config=self.speech_config, audio_config=audio_input)
 
             done = False
+            transcription = []
 
-            def recognizing_callback(evt):
+            def handle_final_result(evt):
                 nonlocal done
-                if evt.result.reason == speechsdk.ResultReason.RecognizingSpeech:
-                    segment = audio[
-                              evt.result.offset_in_ticks // 10000: evt.result.offset_in_ticks // 10000 + evt.result.duration_in_ticks // 10000]
-                    segment_path = f"{audio_path[:-4]}_{evt.result.offset_in_ticks}_{evt.result.offset_in_ticks + evt.result.duration_in_ticks}.wav"
-                    segment.export(segment_path, format="wav")
-                    segments.append(segment_path)
+                if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
+                    transcription.append(evt.result.text)
                 elif evt.result.reason == speechsdk.ResultReason.NoMatch:
-                    done = True
+                    logger.warning(f"No speech could be recognized: {evt.result.no_match_details}")
+                elif evt.result.reason == speechsdk.ResultReason.Canceled:
+                    cancellation_details = evt.result.cancellation_details
+                    logger.warning(f"Speech Recognition canceled: {cancellation_details.reason}")
+                    if cancellation_details.reason == speechsdk.CancellationReason.Error:
+                        logger.warning(f"Error details: {cancellation_details.error_details}")
+                done = True
 
-            speech_recognizer.recognizing.connect(recognizing_callback)
-            speech_recognizer.recognized.connect(lambda evt: print('RECOGNIZED: {}'.format(evt)))
-            speech_recognizer.session_started.connect(lambda evt: print('SESSION STARTED: {}'.format(evt)))
-            speech_recognizer.session_stopped.connect(lambda evt: print('SESSION STOPPED {}'.format(evt)))
-            speech_recognizer.canceled.connect(lambda evt: print('CANCELED {}'.format(evt)))
+            speech_recognizer.recognized.connect(handle_final_result)
+            speech_recognizer.session_started.connect(lambda evt: logger.info('Session started: {}'.format(evt)))
+            speech_recognizer.session_stopped.connect(lambda evt: logger.info('Session stopped {}'.format(evt)))
+            speech_recognizer.canceled.connect(lambda evt: logger.warning('CANCELED {}'.format(evt)))
 
             speech_recognizer.start_continuous_recognition()
             while not done:
                 time.sleep(0.5)
             speech_recognizer.stop_continuous_recognition()
 
-            logger.info(f"Audio {audio_path} split into {len(segments)} segments")
-            return segments
+            return " ".join(transcription)
+
         except Exception as e:
-            logger.error(f"Error splitting audio: {str(e)}")
-            return []
-
-    @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
-    def transcribe_segment(self, segment_path: str) -> Tuple[str, str]:
-        """使用Azure转录单个音频片段,失败自动重试"""
-        try:
-            with self.semaphore:
-                audio_config = speechsdk.AudioConfig(filename=segment_path)
-                speech_recognizer = speechsdk.SpeechRecognizer(speech_config=self.speech_config,
-                                                               audio_config=audio_config)
-                result = speech_recognizer.recognize_once()
-
-            if result.reason == speechsdk.ResultReason.RecognizedSpeech:
-                logger.info(f"Successfully transcribed segment: {segment_path}")
-                return segment_path, result.text
-            else:
-                logger.warning(f"No speech recognized in segment {segment_path}: {result.no_match_details}")
-                return segment_path, ""
-        except Exception as e:
-            logger.error(f"Error transcribing segment {segment_path}: {str(e)}")
-            raise
-
-    def transcribe_audio(self, segments: List[str]) -> str:
-        """并发转录所有音频片段"""
-        full_text = ""
-        try:
-            if not segments:
-                logger.warning("No audio segments to transcribe")
-                return ""
-
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                futures = [executor.submit(self.transcribe_segment, segment) for segment in segments]
-                results = [future.result() for future in concurrent.futures.as_completed(futures)]
-
-
-            for segment_path, text in sorted(results, key=lambda x: int(x[0].split('_')[-2])):
-                if len(text) > 0 and text not in full_text:
-                    full_text += text + " "
-
-            logger.info("All segments transcribed and merged")
-            return full_text.strip()
-        except Exception as e:
-            logger.error(f"Error in transcribe_audio: {str(e)}")
-            return full_text.strip()  # 返回已转录的部分文本
+            logger.error(f"Error transcribing audio: {str(e)}")
+            return ""
 
 
 def process_video(context):
     """处理视频并返回转录文本"""
     try:
-        cmsg = context["msg"]
-        cmsg.prepare()
         video_path = context.content
-        print(f"视频文件路径：{video_path}")
-
         logger.info(f"Processing video: {video_path}")
 
+        processor = AudioProcessor()
+        audio_path = os.path.splitext(video_path)[0] + ".wav"
 
-        processor = AudioProcessor()  # 使用Azure服务的AudioProcessor
+        # 提取音频
+        video = VideoFileClip(video_path)
+        video.audio.write_audiofile(audio_path)
+        logger.info(f"Audio extracted from {video_path} to {audio_path}")
 
-        audio_path = processor.extract_audio(video_path)
-        segments = processor.split_audio(audio_path)
-        text = processor.transcribe_audio(segments)
+        # 转录音频
+        text = processor.transcribe_audio(audio_path)
 
-        # 清理临时文件，如果存在，就删除
-        if os.path.exists(audio_path):
-            os.remove(audio_path)
-        if os.path.exists(video_path):
-            os.remove(video_path)
-        for segment in segments:
-            if os.path.exists(segment):
-                os.remove(segment)
+        # 删除临时文件
+        os.remove(audio_path)
+        os.remove(video_path)
 
         logger.info("Video processing completed successfully")
         return text
+
     except Exception as e:
         logger.error(f"Error in process_video: {str(e)}")
         raise
