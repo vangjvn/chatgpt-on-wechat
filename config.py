@@ -464,9 +464,9 @@ def run_scheduled_tasks():
         time.sleep(60)  # 每分钟检查一次是否有待执行的任务
 
 
-def setup_scheduled_tasks():
-    schedule.every().day.at("23:59").do(User_manager.deduct_points)
-
-    # 在新线程中运行定时任务
-    task_thread = threading.Thread(target=run_scheduled_tasks)
-    task_thread.start()
+# def setup_scheduled_tasks():
+#     schedule.every().day.at("23:59").do(User_manager.deduct_points)
+#
+#     # 在新线程中运行定时任务
+#     task_thread = threading.Thread(target=run_scheduled_tasks)
+#     task_thread.start()

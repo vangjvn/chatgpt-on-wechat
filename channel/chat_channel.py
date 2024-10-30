@@ -5,8 +5,6 @@ import threading
 import time
 from asyncio import CancelledError
 from concurrent.futures import Future, ThreadPoolExecutor
-from moviepy.editor import VideoFileClip
-import speech_recognition as sr
 from bridge.context import *
 from bridge.reply import *
 from channel.channel import Channel
@@ -259,13 +257,20 @@ class ChatChannel(Channel):
                         print(f"当前用户等级为：{cur_stage}")
                         total_score = User_manager.load_user(user_id_hex).get("total_score", 0)
                         print(f"当前用户总分为：{total_score}")
-                        achievements = User_manager.load_user(user_id_hex).get("achievements", [])
+                        achievements = User_manager.get_active_achievements(user_id_hex)
                         print(f"当前用户成就为：{achievements}")
-                        res_reply = f"本次跟读得分为：{score}分\n评价：\n{reply_text}" + f"""
+                        if achievements:
+                            res_reply = f"本次跟读得分为：{score}分\n评价：\n{reply_text}" + f"""
 _____________________
 你的当前打卡级别：{cur_stage}
 你的当前打卡分数：{str(total_score)}
 你当前获得的成就：{str(achievements)}
+"""
+                        else:
+                            res_reply = f"本次跟读得分为：{score}分\n评价：\n{reply_text}" + f"""
+_____________________
+你的当前打卡级别：{cur_stage}
+你的当前打卡分数：{str(total_score)}
 """
                         reply = Reply(ReplyType.TEXT, res_reply)
                 except Exception as e:

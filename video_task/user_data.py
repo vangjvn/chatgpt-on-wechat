@@ -3,6 +3,7 @@ import os
 from datetime import datetime, timedelta
 import hashlib
 
+
 def generate_user_id(group_name, user_nickname):
     # Combine group name and user nickname
     combined = f"{group_name}:{user_nickname}"
@@ -15,6 +16,7 @@ def generate_user_id(group_name, user_nickname):
 
     # Return the first 16 characters of the hash as the user ID
     return hex_dig[:16]
+
 
 class UserManager:
     def __init__(self, file_path="user_data"):
@@ -30,7 +32,7 @@ class UserManager:
             self.save_user(initial_data)
             return initial_data
 
-        with open(file_path, "r",encoding='utf-8') as f:
+        with open(file_path, "r", encoding='utf-8') as f:
             return json.load(f)
 
     def create_initial_user_data(self, user_id):
@@ -60,7 +62,7 @@ class UserManager:
         with open(f"{self.file_path}/{user_data['user_id']}.json", "w", encoding='utf-8') as f:
             json.dump(user_data, f, indent=2)
 
-    def update_user_score(self, user_id, user_name,score):
+    def update_user_score(self, user_id, user_name, score):
         score = int(score)
         user_data = self.load_user(user_id)
         user_data['username'] = user_name
@@ -94,16 +96,38 @@ class UserManager:
         return user_data
 
     def handle_new_day(self, user_data, score, today):
+        # 计算上次打卡到今天的间隔天数
+        last_date = datetime.strptime(user_data['last_update_date'], "%Y-%m-%d")
+        current_date = datetime.strptime(today, "%Y-%m-%d")
+        days_diff = (current_date - last_date).days
+
+        if days_diff > 1:  # 如果间隔超过1天，说明打卡中断
+            # 扣除中断天数对应的分数
+            points_to_deduct = days_diff - 1  # 减1是因为今天不算入惩罚天数
+
+            # 实际执行扣分操作
+            user_data['total_score'] = max(0, user_data['total_score'] - points_to_deduct)
+
+            # 记录惩罚信息
+            user_data['rewards']['打卡中断惩罚'] = {
+                "achieved": True,
+                "date": today,
+                "amount": -points_to_deduct  # 负数表示扣分
+            }
+
+            # 重置连续天数
+            user_data['consecutive_days'] = 1
+            # 移除连续打卡相关成就
+            self.remove_consecutive_days_achievements(user_data)
+
+        elif days_diff == 1:  # 正常连续打卡
+            user_data['consecutive_days'] += 1
+            self.check_consecutive_days_achievement(user_data)
+
+        # 更新历史记录
         user_data['scores_history'].insert(0, {"date": today, "score": score})
         if len(user_data['scores_history']) > 7:
             user_data['scores_history'] = user_data['scores_history'][:7]
-
-        if user_data['last_update_date'] == (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"):
-            user_data['consecutive_days'] += 1
-            self.check_consecutive_days_achievement(user_data)
-        else:
-            user_data['consecutive_days'] = 1
-            self.remove_consecutive_days_achievements(user_data)
 
         user_data['current_day_score'] = score
         user_data['last_update_date'] = today
@@ -125,9 +149,23 @@ class UserManager:
             }
             user_data['total_score'] += 10
 
+    def get_active_achievements(self, user_id):
+        """获取用户已达成的成就列表"""
+        user_data = self.load_user(user_id)
+        achievements = user_data.get("achievements", {})
+
+        # 只返回已达成的成就
+        active_achievements = {
+            name: details for name, details in achievements.items()
+            if details.get('achieved', False)
+        }
+
+        return active_achievements if active_achievements else {}
+
     def apply_rewards(self, user_data, is_new_day):
         # Apply reward only if it's a new day or the score improved to 5
-        if is_new_day or (user_data['current_day_score'] == 5 and not any(r['date'] == user_data['last_update_date'] for r in user_data['rewards'])):
+        if is_new_day or (user_data['current_day_score'] == 5 and not any(
+                r['date'] == user_data['last_update_date'] for r in user_data['rewards'])):
             user_data['rewards'].append({"name": "额外经验值", "amount": 10, "date": user_data['last_update_date']})
             user_data['total_score'] += 10
 
@@ -163,7 +201,7 @@ class UserManager:
                 user_data['total_score'] += 1
 
     def remove_consecutive_days_achievements(self, user_data):
-        # 重置连续打卡相关的成就和奖励
+        # 重置连续打卡相关的成就
         achievements_to_reset = ["连续打卡3天", "连续打卡5天", "连续打卡7天"]
         for achievement in achievements_to_reset:
             user_data['achievements'][achievement] = {
@@ -177,6 +215,13 @@ class UserManager:
             "achieved": False,
             "date": None,
             "amount": 1
+        }
+
+        # 记录惩罚信息（可选）
+        user_data['rewards']['打卡中断惩罚'] = {
+            "achieved": True,
+            "date": user_data['last_update_date'],
+            "amount": -1  # 负数表示扣分
         }
 
     def update_level(self, user_data):
@@ -195,12 +240,3 @@ class UserManager:
                 user_data['level'] = level
                 break
 
-    def deduct_points(self):
-        # Deduct points for users who didn't check in today
-        today = datetime.now().strftime("%Y-%m-%d")
-        for user_file in os.listdir(self.file_path):
-            user_data = self.load_user(user_file.split('.')[0])
-            if user_data['last_update_date'] != today:
-                user_data['total_score'] = max(0, int(user_data['total_score']) - 3)  # Deduct 3 points, minimum 0
-                user_data['consecutive_days'] = 0
-                self.save_user(user_data)

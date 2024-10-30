@@ -7,7 +7,7 @@ import time
 
 from channel import channel_factory
 from common import const
-from config import load_config,setup_scheduled_tasks
+from config import load_config
 from plugins import *
 import threading
 
@@ -49,7 +49,7 @@ def run():
         # kill signal
         sigterm_handler_wrap(signal.SIGTERM)
         # 设置定时任务
-        setup_scheduled_tasks()
+        # setup_scheduled_tasks()
         # create channel
         channel_name = conf().get("channel_type", "wx")
 
