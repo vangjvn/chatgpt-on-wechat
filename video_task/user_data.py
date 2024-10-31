@@ -78,14 +78,14 @@ class UserManager:
             self.handle_new_day(user_data, score, today)
         else:
             # 同一天 - 只有当新分数更高时才增加总分差值
-            if score > user_data['current_day_score']:
-                score_diff = score - user_data['current_day_score']
+            if score > previous_score:
+                score_diff = score - previous_score
                 user_data['total_score'] += score_diff
                 user_data['current_day_score'] = score
                 user_data['scores_history'][0]['score'] = score
 
         # Check for achievements and rewards (only if score improved)
-        if is_new_day or score > user_data['current_day_score']:
+        if is_new_day or score > previous_score:
             self.check_achievements(user_data)
             self.apply_rewards(user_data, is_new_day)
 
@@ -136,17 +136,24 @@ class UserManager:
         today = user_data['last_update_date']
 
         # 检查首次满分
-        if user_data['current_day_score'] == 5 and not user_data['achievements']['首次满分']['achieved']:
+        if (user_data['current_day_score'] == 5 and
+                not user_data['achievements']['首次满分']['achieved'] and
+                not user_data['rewards']['首次满分']['achieved']):  # 添加对奖励的检查
+
+            # 设置成就
             user_data['achievements']['首次满分'] = {
                 "achieved": True,
                 "date": today
             }
-            # 首次满分奖励
+
+            # 设置奖励
             user_data['rewards']['首次满分'] = {
                 "achieved": True,
                 "date": today,
                 "amount": 10
             }
+
+            # 添加分数
             user_data['total_score'] += 10
 
     def get_active_achievements(self, user_id):
